@@ -7,7 +7,7 @@ def make_transmit_signal(
     first_freq: int = 4000, last_freq: int = 13000, interval_time: float = 0.1
 ):
     """送信信号となる音声ファイルを生成する
-    1kHzごとの周波数帯を連続的に送信するチャープ信号を生成する
+    1kHzごとの周波数帯を連続的に送信するチャープ信号のwaveファイルを生成する
 
     Parameters
     ----------
@@ -29,10 +29,12 @@ def make_transmit_signal(
         signal = np.concatenate([signal, tmp_signal])
         interval = np.zeros(int(interval_time * sampling_rate))
         signal = np.concatenate([signal, interval])
-    pad_len = 48000 - len(signal)
+    ret_time = (len(signal) // sampling_rate) + 1  # 送信信号の長さ,切りの良い時間にする(秒)
+    pad_len = ret_time * sampling_rate - len(signal)
     pad = np.zeros(pad_len)  # 全体が1秒になるように0で埋める
     signal = np.concatenate([signal, pad])
-    write("transmit_4k-13k.wav", sampling_rate, signal)
+    f_name = f"transmit_{int(first_freq // 1000)}k-{int(last_freq // 1000)}k_i{int(interval_time * 1000)}.wav"
+    write(f_name, sampling_rate, signal)
 
 
 if __name__ == "__main__":

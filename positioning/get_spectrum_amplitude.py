@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def get_spectrum_amplitude(res_signal: np.ndarray, plot=False):
+def get_spectrum_amplitude(
+    res_signal: np.ndarray, interval_length: float = 0.100, plot=False
+):
     """音声信号のスペクトル振幅を求める
     帯域ごとに区切られたチャープ信号が連続で送られてくる受信信号から、
     該当部分を切り出し送信されたチャープ信号のスペクトル振幅を求める
@@ -14,6 +16,8 @@ def get_spectrum_amplitude(res_signal: np.ndarray, plot=False):
     ---------
     res_signal : NDArray
         受信信号
+    interval_length : float
+        チャープのバンド間の間隔(s)
     plot : bool
         プロットするかどうか
 
@@ -28,7 +32,6 @@ def get_spectrum_amplitude(res_signal: np.ndarray, plot=False):
     # 方位角-40~40°, 仰角0~50°, スペクトル6個×10発
     sampling_rate = 48000  # マイクのサンプリングレート
     signal_length = 0.003  # チャープ一発の信号長
-    interval_length = 0.100  # チャープのバンド間の間隔
     interval_sample_length = int(interval_length * sampling_rate)  # チャープのバンド間の間隔のサンプル数
     len_chirp_sample = 144  # 受信したチャープのサンプル数
     chirp_width = 1000  # チャープ一発の周波数帯域の幅
