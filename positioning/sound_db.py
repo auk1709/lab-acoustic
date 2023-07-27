@@ -8,10 +8,11 @@ from .create_db import create_db
 
 class SoundDB:
     def __init__(self, sample_dir, interval=0.100, dim=3):
-        self.dimention = dim
-        self.db = create_db(sample_dir, interval=interval, dim=dim)
+        self.dimension = dim
+        self.interval = interval
+        self.db = create_db(sample_dir, interval=interval, dimension=dim)
 
     def positioning(self, file, output="rect"):
-        if self.dimention == 2:
-            return positioning_2d(self.db[0], self.db[1], file, output)
-        return estimate(self.db[0], self.db[1], file, output)
+        if self.dimension == 2:
+            return positioning_2d(self.db[0], self.db[1], file, self.interval, output)
+        return estimate(self.db[0], self.db[1], file, self.interval, output)

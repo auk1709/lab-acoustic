@@ -40,7 +40,7 @@ def create_db(sample_dir, interval: float = 0.100, dimension: int = 3):
         sound_db = np.full(
             (count_azimuth_sample, band_freq_index_range * len(band_freqs)), np.nan
         )
-        ampli_db = np.full((count_azimuth_sample), np.nan)
+        ampli_db = np.full(count_azimuth_sample, np.nan)
         for mic_deg in mic_degs:
             sample = readwav(f"{sample_dir}/a{str(mic_deg)}.wav")
             sound_db[mic_deg + 40, :], ampli_db[mic_deg + 40] = get_spectrum_amplitude(

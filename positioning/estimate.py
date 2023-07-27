@@ -2,7 +2,7 @@ import numpy as np
 from .get_spectrum_amplitude import get_spectrum_amplitude
 
 
-def estimate(reference_spec, reference_ampli, file, output="rect"):
+def estimate(reference_spec, reference_ampli, file, interval=0.1, output="rect"):
     """測位を行う
 
     Parameters
@@ -17,7 +17,9 @@ def estimate(reference_spec, reference_ampli, file, output="rect"):
         出力形式, 'rect' or 'polar'
     """
 
-    test_spec, test_ampli = get_spectrum_amplitude(file)  # テストデータのスペクトルと振幅を取得
+    test_spec, test_ampli = get_spectrum_amplitude(
+        file, interval_length=interval
+    )  # テストデータのスペクトルと振幅を取得
 
     # 角度推定
     # 全角度のスペクトルとの誤差の総和を記録
@@ -41,7 +43,9 @@ def estimate(reference_spec, reference_ampli, file, output="rect"):
     return np.array([x_ans, y_ans, z_ans])
 
 
-def positioning_2d(reference_spec, reference_ampli, recieved_signal, output="rect"):
+def positioning_2d(
+    reference_spec, reference_ampli, recieved_signal, interval=0.1, output="rect"
+):
     """測位を行う
 
     Parameters
@@ -57,7 +61,7 @@ def positioning_2d(reference_spec, reference_ampli, recieved_signal, output="rec
     """
 
     test_spec, test_ampli = get_spectrum_amplitude(
-        recieved_signal
+        recieved_signal, interval_length=interval
     )  # テストデータのスペクトルと振幅を取得
 
     # 角度推定
