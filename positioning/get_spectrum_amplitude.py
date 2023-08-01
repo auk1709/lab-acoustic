@@ -5,6 +5,48 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
+def extract_signal_start(res_signal: np.ndarray, interval_length: float = 0.100):
+    """音声信号から1波形分の信号を抽出する最初のインデックスを求める
+    マッチドフィルターによって1波形のみを抽出する
+
+    Parameters
+    ----------
+    res_signal : NDArray
+        受信信号
+    interval_length : float
+        チャープのバンド間の間隔(s)
+
+    Returns
+    -------
+    index_f : int
+        1波形分の信号を抽出する最初のインデックス
+    """
+
+    sampling_rate = 48000  # マイクのサンプリングレート
+    signal_length = 0.003  # チャープ一発の信号長
+    interval_sample_length = int(interval_length * sampling_rate)  # チャープのバンド間の間隔のサンプル数
+    chirp_width = 1000  # チャープ一発の周波数帯域の幅
+    band_freqs = np.arange(4000, 13000, chirp_width)  # 送信する周波数のバンド
+
+    chirp = chirp_exp(
+        band_freqs[0], band_freqs[0] + chirp_width, signal_length, 0.5 * np.pi
+    )
+    for band_freq in band_freqs[1:]:
+        interval = np.zeros(interval_sample_length)
+        chirp = np.concatenate([chirp, interval])
+        tmp_chirp = chirp_exp(
+            band_freq, band_freq + chirp_width, signal_length, 0.5 * np.pi
+        )
+        chirp = np.concatenate([chirp, tmp_chirp])
+
+    # 相互相関
+    corr = sg.correlate(res_signal[:96000], chirp, mode="valid")
+    corr_lags = sg.correlation_lags(len(res_signal[:96000]), len(chirp), mode="valid")
+    # 最大値のインデックス見つける
+    index_f = corr_lags[np.abs(corr).argmax()]
+    return index_f
+
+
 def get_spectrum_amplitude(
     res_signal: np.ndarray, interval_length: float = 0.100, plot=False
 ):
