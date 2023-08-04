@@ -48,7 +48,10 @@ def extract_signal_start(res_signal: np.ndarray, interval_length: float = 0.100)
 
 
 def get_spectrum_amplitude(
-    res_signal: np.ndarray, interval_length: float = 0.100, plot=False
+    res_signal: np.ndarray,
+    interval_length: float = 0.100,
+    ampli_band="first",
+    plot=False,
 ):
     """音声信号のスペクトル振幅を求める
     帯域ごとに区切られたチャープ信号が連続で送られてくる受信信号から、
@@ -60,6 +63,8 @@ def get_spectrum_amplitude(
         受信信号
     interval_length : float
         チャープのバンド間の間隔(s)
+    ampli_band : string
+        受信強度を出すときに相互相関をとる帯域, 'first' or 'all'
     plot : bool
         プロットするかどうか
 
@@ -97,6 +102,8 @@ def get_spectrum_amplitude(
 
     # 相互相関
     corr = sg.correlate(res_signal[:96000], chirp, mode="valid")
+    if ampli_band == "all":
+        max_corr = np.abs(corr).max()
     corr_lags = sg.correlation_lags(len(res_signal[:96000]), len(chirp), mode="valid")
     # 最大値のインデックス見つける
     index_f = corr_lags[np.abs(corr).argmax()]
@@ -127,11 +134,11 @@ def get_spectrum_amplitude(
         # 最大値のインデックス見つける
         index = corr_lags[np.abs(corr).argmax()]
         # 最初のバンドの相互相関の最大値を参照信号の振幅とする
-        if i == 0:
+        if ampli_band == "first" and i == 0:
             max_corr = np.abs(corr).max()
         # 1つ分の波の抽出
         X_1sec = current_sample[index : index + len_chirp_sample]
-        # データベース構築, 計測点のスペクトル算出
+        # 計測点のスペクトル算出
         spectrum = np.fft.fft(X_1sec)
         ampli_spec = np.abs(spectrum)
         fft_freq = np.fft.fftfreq(len(X_1sec), 1 / sampling_rate)

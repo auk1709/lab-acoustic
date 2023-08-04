@@ -105,3 +105,17 @@ def create_db(sample_dir, interval: float = 0.100, dimension: int = 3):
         df_ampli_complete = df_ampli_azimuth.interpolate("akima", axis=0)  # 秋間補間, 高さ方向
 
         return Akima, df_ampli_complete.values
+
+
+def create_mic_revision_db(speaker_dir, mic_dir, interval=0.2):
+    """マイクの角度の補正をしたデータベースを作成する
+
+    Parameters
+    ----------
+    speaker_dir : string
+        スピーカの角度ごとの音声データが入ってるディレクトリの場所
+    mic_dir : string
+        マイクの角度ごとの音声データが入ってるディレクトリの場所
+    interval : float
+        チャープのバンド間の間隔(s)
+    """
