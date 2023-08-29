@@ -1,6 +1,7 @@
 import numpy as np
 
 
+# TODO: あとでmake_wave.pyに移動する
 def chirp_exp(
     start_Hz: int,
     stop_Hz: int,

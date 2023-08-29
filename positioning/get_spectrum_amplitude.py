@@ -3,6 +3,7 @@ import scipy.signal as sg
 from .chirp_exp import chirp_exp
 import matplotlib.pyplot as plt
 import seaborn as sns
+from .make_wave import reference_transmit_signal
 
 
 def extract_signal_start(res_signal: np.ndarray, interval_length: float = 0.100):
@@ -22,25 +23,8 @@ def extract_signal_start(res_signal: np.ndarray, interval_length: float = 0.100)
         1波形分の信号を抽出する最初のインデックス
     """
 
-    sampling_rate = 48000  # マイクのサンプリングレート
-    signal_length = 0.003  # チャープ一発の信号長
-    interval_sample_length = int(interval_length * sampling_rate)  # チャープのバンド間の間隔のサンプル数
-    chirp_width = 1000  # チャープ一発の周波数帯域の幅
-    band_freqs = np.arange(4000, 13000, chirp_width)  # 送信する周波数のバンド
-
-    chirp = chirp_exp(
-        band_freqs[0], band_freqs[0] + chirp_width, signal_length, 0.5 * np.pi
-    )
-    for band_freq in band_freqs[1:]:
-        interval = np.zeros(interval_sample_length)
-        chirp = np.concatenate([chirp, interval])
-        tmp_chirp = chirp_exp(
-            band_freq, band_freq + chirp_width, signal_length, 0.5 * np.pi
-        )
-        chirp = np.concatenate([chirp, tmp_chirp])
-
-    # 相互相関
-    corr = sg.correlate(res_signal[:96000], chirp, mode="valid")
+    chirp = reference_transmit_signal(interval_length=interval_length)  # 参照信号の生成
+    corr = sg.correlate(res_signal[:96000], chirp, mode="valid")  # 相互相関
     corr_lags = sg.correlation_lags(len(res_signal[:96000]), len(chirp), mode="valid")
     # 最大値のインデックス見つける
     index_f = corr_lags[np.abs(corr).argmax()]
@@ -51,6 +35,7 @@ def get_spectrum_amplitude(
     res_signal: np.ndarray,
     interval_length: float = 0.100,
     ampli_band="first",
+    ret_spec="pattern",
     plot=False,
 ):
     """音声信号のスペクトル振幅を求める
@@ -65,6 +50,8 @@ def get_spectrum_amplitude(
         チャープのバンド間の間隔(s)
     ampli_band : string
         受信強度を出すときに相互相関をとる帯域, 'first' or 'all'
+    ret_spec : string
+        返り値のスペクトルの形式, 'pattern' or 'all'
     plot : bool
         プロットするかどうか
 
@@ -87,26 +74,13 @@ def get_spectrum_amplitude(
     fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
     band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
 
-    spec_ampli = np.full((band_freq_index_range * len(band_freqs)), np.nan)
-    # チャープ信号の生成
-    chirp = chirp_exp(
-        band_freqs[0], band_freqs[0] + chirp_width, signal_length, 0.5 * np.pi
-    )
-    for band_freq in band_freqs[1:]:
-        interval = np.zeros(interval_sample_length)
-        chirp = np.concatenate([chirp, interval])
-        tmp_chirp = chirp_exp(
-            band_freq, band_freq + chirp_width, signal_length, 0.5 * np.pi
-        )
-        chirp = np.concatenate([chirp, tmp_chirp])
-
-    # 相互相関
-    corr = sg.correlate(res_signal[:96000], chirp, mode="valid")
+    # マッチドフィルター
+    chirp = reference_transmit_signal(interval_length=interval_length)  # 参照信号の生成
+    corr = sg.correlate(res_signal[:96000], chirp, mode="valid")  # 相互相関
     if ampli_band == "all":
         max_corr = np.abs(corr).max()
     corr_lags = sg.correlation_lags(len(res_signal[:96000]), len(chirp), mode="valid")
-    # 最大値のインデックス見つける
-    index_f = corr_lags[np.abs(corr).argmax()]
+    index_f = corr_lags[np.abs(corr).argmax()]  # 最大値のインデックス見つける
 
     # 検証用のプロット
     if plot:
@@ -119,6 +93,10 @@ def get_spectrum_amplitude(
         axes[1][1].plot(res_signal[index_f : index_f + 50000])
         plt.show()
 
+    spec_ampli = np.full(
+        (band_freq_index_range * len(band_freqs)), np.nan
+    )  # 各バンドから抽出したスペクトルパターンを格納する配列
+    bands_spec = np.empty((0, len_chirp_sample))  # 各バンドのスペクトル振幅を格納する配列
     for i, band_freq in enumerate(band_freqs):
         start_i = index_f + (i * (len_chirp_sample + interval_sample_length))
         current_sample = res_signal[
@@ -141,6 +119,7 @@ def get_spectrum_amplitude(
         # 計測点のスペクトル算出
         spectrum = np.fft.fft(X_1sec)
         ampli_spec = np.abs(spectrum)
+        bands_spec = np.vstack([bands_spec, spectrum])
         fft_freq = np.fft.fftfreq(len(X_1sec), 1 / sampling_rate)
         spec_ampli[
             i * band_freq_index_range : (i + 1) * band_freq_index_range,
@@ -159,6 +138,8 @@ def get_spectrum_amplitude(
             axis[2][0].plot(fft_freq, ampli_spec)
             axis[2][1].plot(fft_freq, np.abs(np.fft.fft(chirp)))
             plt.show()
+    if ret_spec == "all":
+        return bands_spec, max_corr
     # 正規化
     nomalized_spec = spec_ampli / np.max(spec_ampli)
     return nomalized_spec, max_corr
