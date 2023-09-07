@@ -155,6 +155,9 @@ def create_mic_revision_db(speaker_dir, mic_dir, interval=0.2):
         mic_spec = np.vstack((mic_spec, [spec]))
         mic_ampli = np.append(mic_ampli, ampli)
 
+    # マイクのスペクトルを0°基準で割り算（マイクの特性だけを取り出す）
+    mic_spec = mic_spec / mic_spec[0, :, :]
+
     # スピーカーとマイクのスペクトルを掛け算
     mix_spec = np.empty((0, len(mic_spec), len(band_freqs), len_chirp_sample))
     for s_spec in speaker_spec:
@@ -194,7 +197,7 @@ def create_mic_revision_db(speaker_dir, mic_dir, interval=0.2):
     #     azimuth_pattern = np.vstack([azimuth_pattern, (pattern / np.max(pattern))])
 
     # amplitudeの計算
-    normalized_mic_ampli = mic_ampli / np.max(mic_ampli)
+    normalized_mic_ampli = mic_ampli / mic_ampli[0]
     mix_ampli = np.empty((0, len(normalized_mic_ampli)))
     for s_ampli in speaker_ampli:
         mix = np.array([])
@@ -329,7 +332,7 @@ def create_ampli_revision_db(speaker_dir, mic_dir, interval=0.2):
     mic_angle_ampli = mic_angle_akima(all_mic_angles)
 
     # アンプリチュード補正
-    normalized_mic_ampli = mic_angle_ampli / np.max(mic_angle_ampli)
+    normalized_mic_ampli = mic_angle_ampli / mic_angle_ampli[0]
     mix_ampli = np.empty((0, len(normalized_mic_ampli)))
     for s_ampli in azimuth_ampli:
         mix = np.array([])
