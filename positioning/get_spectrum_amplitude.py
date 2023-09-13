@@ -75,11 +75,14 @@ def get_spectrum_amplitude(
     band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
 
     # マッチドフィルター
+    sample_frame_length = int(interval_length * 20 * sampling_rate)  # 0.1秒分のサンプル数
     chirp = reference_transmit_signal(interval_length=interval_length)  # 参照信号の生成
-    corr = sg.correlate(res_signal[:96000], chirp, mode="valid")  # 相互相関
+    corr = sg.correlate(res_signal[:sample_frame_length], chirp, mode="valid")  # 相互相関
     if ampli_band == "all":
         max_corr = np.abs(corr).max()
-    corr_lags = sg.correlation_lags(len(res_signal[:96000]), len(chirp), mode="valid")
+    corr_lags = sg.correlation_lags(
+        len(res_signal[:sample_frame_length]), len(chirp), mode="valid"
+    )
     index_f = corr_lags[np.abs(corr).argmax()]  # 最大値のインデックス見つける
 
     # 検証用のプロット
@@ -93,9 +96,7 @@ def get_spectrum_amplitude(
         axes[1][1].plot(res_signal[index_f : index_f + 50000])
         plt.show()
 
-    spec_ampli = np.full(
-        (band_freq_index_range * len(band_freqs)), np.nan
-    )  # 各バンドから抽出したスペクトルパターンを格納する配列
+    spec_ampli = np.array([])  # 各バンドから抽出したスペクトルパターンを格納する配列
     bands_spec = np.empty((0, len_chirp_sample))  # 各バンドのスペクトル振幅を格納する配列
     for i, band_freq in enumerate(band_freqs):
         start_i = index_f + (i * (len_chirp_sample + interval_sample_length))
@@ -118,15 +119,13 @@ def get_spectrum_amplitude(
         X_1sec = current_sample[index : index + len_chirp_sample]
         # 計測点のスペクトル算出
         spectrum = np.fft.fft(X_1sec)
-        ampli_spec = np.abs(spectrum)
-        bands_spec = np.vstack([bands_spec, spectrum])
         fft_freq = np.fft.fftfreq(len(X_1sec), 1 / sampling_rate)
-        spec_ampli[
-            i * band_freq_index_range : (i + 1) * band_freq_index_range,
-        ] = ampli_spec[
-            int(band_freq // fft_freq_rate) : int(band_freq // fft_freq_rate)
-            + band_freq_index_range
-        ]
+        bands_spec = np.vstack([bands_spec, spectrum])
+        ampli_spec = np.abs(spectrum)
+        band_i = int(band_freq // fft_freq_rate)
+        spec_ampli = np.append(
+            spec_ampli, ampli_spec[band_i : band_i + band_freq_index_range]
+        )
         # 検証用のプロット
         if plot:
             fig, axis = plt.subplots(3, 2, figsize=(16, 10))

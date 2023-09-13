@@ -156,7 +156,7 @@ def create_mic_revision_db(speaker_dir, mic_dir, interval=0.2):
         mic_ampli = np.append(mic_ampli, ampli)
 
     # マイクのスペクトルを0°基準で割り算（マイクの特性だけを取り出す）
-    mic_spec = mic_spec / mic_spec[0, :, :]
+    mic_spec = mic_spec / speaker_spec[4, :, :]
 
     # スピーカーとマイクのスペクトルを掛け算
     mix_spec = np.empty((0, len(mic_spec), len(band_freqs), len_chirp_sample))
@@ -197,11 +197,11 @@ def create_mic_revision_db(speaker_dir, mic_dir, interval=0.2):
     #     azimuth_pattern = np.vstack([azimuth_pattern, (pattern / np.max(pattern))])
 
     # amplitudeの計算
-    normalized_mic_ampli = mic_ampli / mic_ampli[0]
-    mix_ampli = np.empty((0, len(normalized_mic_ampli)))
-    for s_ampli in speaker_ampli:
+    normalized_spk_ampli = speaker_ampli / speaker_ampli[4]
+    mix_ampli = np.empty((0, len(mic_ampli)))
+    for s_ampli in normalized_spk_ampli:
         mix = np.array([])
-        for m_ampli in normalized_mic_ampli:
+        for m_ampli in mic_ampli:
             x_ampli = s_ampli * m_ampli
             mix = np.append(mix, x_ampli)
         mix_ampli = np.vstack([mix_ampli, mix])
@@ -342,3 +342,153 @@ def create_ampli_revision_db(speaker_dir, mic_dir, interval=0.2):
         mix_ampli = np.vstack([mix_ampli, mix])
 
     return perfect_spec, mix_ampli
+
+
+# TODO: 未完成
+def create_phone_db(speaker_dir, mic_dir, interval=0.2):
+    """スマホマイクでの2次元測位のデータベースを作成する
+    マイクは常にまっすぐと想定
+    マイクの角度補正は行わない
+
+    Parameters
+    ----------
+    speaker_dir : string
+        スピーカの角度ごとの音声データが入ってるディレクトリの場所
+    mic_dir : string
+        マイクの角度ごとの音声データが入ってるディレクトリの場所
+    interval : float
+        チャープのバンド間の間隔(s)
+    """
+
+    sampling_rate = 48000  # マイクのサンプリングレート(Hz)
+    len_chirp_sample = 144  # 受信したチャープのサンプル数
+    chirp_width = 1000  # チャープ一発の周波数帯域の幅
+    count_azimuth_sample = 81  # 方位角方向のサンプル数
+    azimuth_points = np.arange(-40, 50, 10)
+    mic_angles = np.arange(0, 91, 10)
+    band_freqs = np.arange(4000, 13000, chirp_width)  # 送信する周波数のバンド
+    fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
+    band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
+
+    # スピーカーの角度ごとのスペクトルと振幅を取得
+    speaker_spec = np.empty((0, len(band_freqs), len_chirp_sample))
+    speaker_ampli = np.array([])
+    for azimuth in azimuth_points:
+        signal = readwav(f"{speaker_dir}/a{str(azimuth)}.wav")
+        spec, ampli = get_spectrum_amplitude(
+            signal, interval_length=interval, ret_spec="all"
+        )  # 各バンドごとのスペクトルと振幅を取得
+        speaker_spec = np.vstack((speaker_spec, [spec]))
+        speaker_ampli = np.append(speaker_ampli, ampli)
+
+    # マイクの角度ごとのスペクトルと振幅を取得
+    mic_spec = np.empty((0, len(band_freqs), len_chirp_sample))
+    mic_ampli = np.array([])
+    for angle in range(0, 91, 10):
+        signal = readwav(f"{mic_dir}/angle{str(angle)}.wav")
+        spec, ampli = get_spectrum_amplitude(
+            signal, interval_length=interval, ret_spec="all"
+        )
+        mic_spec = np.vstack((mic_spec, [spec]))
+        mic_ampli = np.append(mic_ampli, ampli)
+
+    # マイクのスペクトルを0°基準で割り算（マイクの特性だけを取り出す）
+    mic_spec = mic_spec / speaker_spec[4, :, :]
+
+    # スピーカーとマイクのスペクトルを掛け算
+    mix_spec = np.empty((0, len(mic_spec), len(band_freqs), len_chirp_sample))
+    for s_spec in speaker_spec:
+        mix = np.empty((0, len(band_freqs), len_chirp_sample))
+        for m_spec in mic_spec:
+            x_spec = np.multiply(s_spec, m_spec)
+            mix = np.vstack((mix, [x_spec]))
+        mix_spec = np.vstack((mix_spec, [mix]))
+
+    # かけあわせたものからスペクトルのパターンを抽出
+    pattern_spec = np.empty(
+        (0, len(mic_angles), len(band_freqs) * band_freq_index_range)
+    )
+    for azimuth_spec in mix_spec:
+        azimuth_pattern = np.empty((0, len(band_freqs) * band_freq_index_range))
+        for spec in azimuth_spec:
+            pattern = np.array([])
+            for band_spec, freq in zip(spec, band_freqs):
+                band_index = int(freq // fft_freq_rate)
+                pattern = np.append(
+                    pattern,
+                    np.abs(band_spec)[band_index : band_index + band_freq_index_range],
+                )
+            azimuth_pattern = np.vstack([azimuth_pattern, (pattern / np.max(pattern))])
+        pattern_spec = np.vstack((pattern_spec, [azimuth_pattern]))
+
+    # 検証用、スピーカー側のみ、スペクトルのパターンを抽出
+    # azimuth_pattern = np.empty((0, len(band_freqs) * band_freq_index_range))
+    # for spec in speaker_spec:
+    #     pattern = np.array([])
+    #     for band_spec, freq in zip(spec, band_freqs):
+    #         band_index = int(freq // fft_freq_rate)
+    #         pattern = np.append(
+    #             pattern,
+    #             np.abs(band_spec)[band_index : band_index + band_freq_index_range],
+    #         )
+    #     azimuth_pattern = np.vstack([azimuth_pattern, (pattern / np.max(pattern))])
+
+    # amplitudeの計算
+    normalized_mic_ampli = mic_ampli / mic_ampli[0]
+    mix_ampli = np.empty((0, len(normalized_mic_ampli)))
+    for s_ampli in speaker_ampli:
+        mix = np.array([])
+        for m_ampli in normalized_mic_ampli:
+            x_ampli = s_ampli * m_ampli
+            mix = np.append(mix, x_ampli)
+        mix_ampli = np.vstack([mix_ampli, mix])
+
+    # 補間
+    all_azimuth = np.arange(-40, 41)
+    all_mic_angles = np.arange(0, 91)
+    mic_interp_spec = np.empty(
+        (0, len(all_mic_angles), len(band_freqs) * band_freq_index_range)
+    )
+    for azimuth_spec in pattern_spec:
+        pattern = np.empty((len(all_mic_angles), 0))
+        for i in range(len(azimuth_spec[0, :])):
+            akima = interpolate.Akima1DInterpolator(mic_angles, azimuth_spec[:, i])
+            tmp = akima(all_mic_angles).reshape(-1, 1)
+            pattern = np.hstack([pattern, tmp])
+        mic_interp_spec = np.vstack((mic_interp_spec, [pattern]))
+    perfect_spec = np.empty(
+        (len(all_azimuth), 0, len(band_freqs) * band_freq_index_range)
+    )
+    for i in range(len(all_mic_angles)):
+        pattern = np.empty((len(all_azimuth), 0))
+        for j in range(len(mic_interp_spec[0, 0, :])):
+            akima = interpolate.Akima1DInterpolator(
+                azimuth_points, mic_interp_spec[:, i, j]
+            )
+            tmp = akima(all_azimuth).reshape(-1, 1)
+            pattern = np.hstack([pattern, tmp])
+        pattern = pattern.reshape(len(all_azimuth), 1, 36)
+        perfect_spec = np.hstack((perfect_spec, pattern))
+
+    mic_interp_ampli = np.empty((0, len(all_mic_angles)))
+    for azimuth_ampli in mix_ampli:
+        akima = interpolate.Akima1DInterpolator(mic_angles, azimuth_ampli)
+        tmp = akima(all_mic_angles)
+        mic_interp_ampli = np.vstack([mic_interp_ampli, tmp])
+    perfect_ampli = np.empty((len(all_azimuth), 0))
+    for i in range(len(all_mic_angles)):
+        akima = interpolate.Akima1DInterpolator(azimuth_points, mic_interp_ampli[:, i])
+        tmp = akima(all_azimuth).reshape(-1, 1)
+        perfect_ampli = np.hstack([perfect_ampli, tmp])
+
+    # 検証用、スピーカー側のみ、補間
+    # all_azimuth = np.arange(-40, 41)
+    # perfect_spec = np.empty((len(all_azimuth), 0))
+    # for i in range(len(azimuth_pattern[0, :])):
+    #     akima = interpolate.Akima1DInterpolator(azimuth_points, azimuth_pattern[:, i])
+    #     tmp = akima(all_azimuth).reshape(-1, 1)
+    #     perfect_spec = np.hstack([perfect_spec, tmp])
+    # ampli_akima = interpolate.Akima1DInterpolator(azimuth_points, speaker_ampli)
+    # perfect_ampli = ampli_akima(all_azimuth)
+
+    return perfect_spec, perfect_ampli
