@@ -3,7 +3,7 @@ import pandas as pd
 from scipy import interpolate
 import matplotlib.pyplot as plt
 from .readwav import readwav
-from .get_spectrum_amplitude import get_spectrum_amplitude
+from .get_spectrum_amplitude import get_spectrum_amplitude, get_spec_ampli_noise
 
 
 def create_db(sample_dir, interval: float = 0.100, dimension: int = 3):
@@ -348,7 +348,7 @@ def create_ampli_revision_db(speaker_dir, mic_dir, interval=0.2):
 def create_phone_db(speaker_dir, mic_dir, interval=0.2):
     """スマホマイクでの2次元測位のデータベースを作成する
     マイクは常にまっすぐと想定
-    マイクの角度補正は行わない
+    ノイズのデータから補正された振幅を推定
 
     Parameters
     ----------
@@ -384,13 +384,15 @@ def create_phone_db(speaker_dir, mic_dir, interval=0.2):
     # マイクの角度ごとのスペクトルと振幅を取得
     mic_spec = np.empty((0, len(band_freqs), len_chirp_sample))
     mic_ampli = np.array([])
+    mic_noise = np.array([])
     for angle in range(0, 91, 10):
         signal = readwav(f"{mic_dir}/angle{str(angle)}.wav")
-        spec, ampli = get_spectrum_amplitude(
+        spec, ampli, noise = get_spec_ampli_noise(
             signal, interval_length=interval, ret_spec="all"
         )
         mic_spec = np.vstack((mic_spec, [spec]))
         mic_ampli = np.append(mic_ampli, ampli)
+        mic_noise = np.append(mic_noise, noise)
 
     # マイクのスペクトルを0°基準で割り算（マイクの特性だけを取り出す）
     mic_spec = mic_spec / speaker_spec[4, :, :]
@@ -400,7 +402,7 @@ def create_phone_db(speaker_dir, mic_dir, interval=0.2):
     for s_spec in speaker_spec:
         mix = np.empty((0, len(band_freqs), len_chirp_sample))
         for m_spec in mic_spec:
-            x_spec = np.multiply(s_spec, m_spec)
+            x_spec = s_spec * m_spec
             mix = np.vstack((mix, [x_spec]))
         mix_spec = np.vstack((mix_spec, [mix]))
 
@@ -421,24 +423,12 @@ def create_phone_db(speaker_dir, mic_dir, interval=0.2):
             azimuth_pattern = np.vstack([azimuth_pattern, (pattern / np.max(pattern))])
         pattern_spec = np.vstack((pattern_spec, [azimuth_pattern]))
 
-    # 検証用、スピーカー側のみ、スペクトルのパターンを抽出
-    # azimuth_pattern = np.empty((0, len(band_freqs) * band_freq_index_range))
-    # for spec in speaker_spec:
-    #     pattern = np.array([])
-    #     for band_spec, freq in zip(spec, band_freqs):
-    #         band_index = int(freq // fft_freq_rate)
-    #         pattern = np.append(
-    #             pattern,
-    #             np.abs(band_spec)[band_index : band_index + band_freq_index_range],
-    #         )
-    #     azimuth_pattern = np.vstack([azimuth_pattern, (pattern / np.max(pattern))])
-
     # amplitudeの計算
-    normalized_mic_ampli = mic_ampli / mic_ampli[0]
-    mix_ampli = np.empty((0, len(normalized_mic_ampli)))
-    for s_ampli in speaker_ampli:
+    normalized_spk_ampli = speaker_ampli / speaker_ampli[4]
+    mix_ampli = np.empty((0, len(mic_ampli)))
+    for s_ampli in normalized_spk_ampli:
         mix = np.array([])
-        for m_ampli in normalized_mic_ampli:
+        for m_ampli in mic_ampli:
             x_ampli = s_ampli * m_ampli
             mix = np.append(mix, x_ampli)
         mix_ampli = np.vstack([mix_ampli, mix])
@@ -480,15 +470,7 @@ def create_phone_db(speaker_dir, mic_dir, interval=0.2):
         akima = interpolate.Akima1DInterpolator(azimuth_points, mic_interp_ampli[:, i])
         tmp = akima(all_azimuth).reshape(-1, 1)
         perfect_ampli = np.hstack([perfect_ampli, tmp])
+    akima_noise = interpolate.Akima1DInterpolator(mic_angles, mic_noise)
+    perfect_noise = akima_noise(all_mic_angles)
 
-    # 検証用、スピーカー側のみ、補間
-    # all_azimuth = np.arange(-40, 41)
-    # perfect_spec = np.empty((len(all_azimuth), 0))
-    # for i in range(len(azimuth_pattern[0, :])):
-    #     akima = interpolate.Akima1DInterpolator(azimuth_points, azimuth_pattern[:, i])
-    #     tmp = akima(all_azimuth).reshape(-1, 1)
-    #     perfect_spec = np.hstack([perfect_spec, tmp])
-    # ampli_akima = interpolate.Akima1DInterpolator(azimuth_points, speaker_ampli)
-    # perfect_ampli = ampli_akima(all_azimuth)
-
-    return perfect_spec, perfect_ampli
+    return perfect_spec, perfect_ampli, perfect_noise

@@ -23,9 +23,13 @@ def extract_signal_start(res_signal: np.ndarray, interval_length: float = 0.100)
         1波形分の信号を抽出する最初のインデックス
     """
 
+    sampling_rate = 48000  # マイクのサンプリングレート
+    sample_frame_length = int(interval_length * 20 * sampling_rate)  # 信号約2個分のフレーム数
     chirp = reference_transmit_signal(interval_length=interval_length)  # 参照信号の生成
-    corr = sg.correlate(res_signal[:96000], chirp, mode="valid")  # 相互相関
-    corr_lags = sg.correlation_lags(len(res_signal[:96000]), len(chirp), mode="valid")
+    corr = sg.correlate(res_signal[:sample_frame_length], chirp, mode="valid")  # 相互相関
+    corr_lags = sg.correlation_lags(
+        len(res_signal[:sample_frame_length]), len(chirp), mode="valid"
+    )
     # 最大値のインデックス見つける
     index_f = corr_lags[np.abs(corr).argmax()]
     return index_f
@@ -142,3 +146,71 @@ def get_spectrum_amplitude(
     # 正規化
     nomalized_spec = spec_ampli / np.max(spec_ampli)
     return nomalized_spec, max_corr
+
+
+def get_spec_ampli_noise(
+    res_signal: np.ndarray, interval_length: float = 0.2, ret_spec="pattern"
+):
+    """スペクトル、振幅、無音時のノイズの平均を取得
+
+    Parameters
+    ----------
+    res_signal : NDArray
+        受信信号
+    interval_length : float
+        チャープのバンド間の間隔(s)
+    ret_spec : string
+        返り値のスペクトルの形式, 'pattern' or 'all'
+
+    """
+
+    # 方位角-40~40°, 仰角0~50°, スペクトル6個×10発
+    sampling_rate = 48000  # マイクのサンプリングレート
+    signal_length = 0.003  # チャープ一発の信号長
+    interval_sample_length = int(interval_length * sampling_rate)  # チャープのバンド間の間隔のサンプル数
+    len_chirp_sample = 144  # 受信したチャープのサンプル数
+    chirp_width = 1000  # チャープ一発の周波数帯域の幅
+    band_freqs = np.arange(4000, 13000, chirp_width)  # 送信する周波数のバンド
+    sampling_buffer = 48  # データ切り出しの前後のゆとりN_c (1ms)
+    fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
+    band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
+
+    spec_ampli = np.array([])  # 各バンドから抽出したスペクトルパターンを格納する配列
+    bands_spec = np.empty((0, len_chirp_sample))  # 各バンドのスペクトル振幅を格納する配列
+    # マッチドフィルター
+    index_f = extract_signal_start(res_signal, interval_length=interval_length)
+
+    for i, band_freq in enumerate(band_freqs):
+        start_i = index_f + (i * (len_chirp_sample + interval_sample_length))
+        current_sample = res_signal[
+            start_i - sampling_buffer : start_i + len_chirp_sample + sampling_buffer
+        ]
+        chirp = chirp_exp(
+            band_freq, band_freq + chirp_width, signal_length, 0.5 * np.pi
+        )  # チャープ信号の生成
+        corr = sg.correlate(current_sample, chirp, mode="valid")  # 相互相関
+        corr_lags = sg.correlation_lags(len(current_sample), len(chirp), mode="valid")
+        index = corr_lags[np.abs(corr).argmax()]  # 最大値のインデックス見つける
+        if i == 0:
+            max_corr = np.abs(corr).max()  # 最初のバンドの相互相関の最大値を参照信号の振幅とする
+        X_1sec = current_sample[index : index + len_chirp_sample]  # 1つ分の波の抽出
+        spectrum = np.fft.fft(X_1sec)  # 計測点のスペクトル算出
+        bands_spec = np.vstack([bands_spec, spectrum])
+        ampli_spec = np.abs(spectrum)
+        band_i = int(band_freq // fft_freq_rate)
+        spec_ampli = np.append(
+            spec_ampli, ampli_spec[band_i : band_i + band_freq_index_range]
+        )
+
+    noise_i = index_f + ((len_chirp_sample + interval_sample_length) * len(band_freqs))
+    noise_sample = res_signal[
+        noise_i
+        - int(interval_sample_length / 2) : noise_i
+        + int(interval_sample_length / 2)
+    ]
+    noise_avg = np.mean(noise_sample**2)
+
+    if ret_spec == "all":
+        return bands_spec, max_corr, noise_avg
+    nomalized_spec = spec_ampli / np.max(spec_ampli)  # スペクトルパターンの正規化
+    return nomalized_spec, max_corr, noise_avg

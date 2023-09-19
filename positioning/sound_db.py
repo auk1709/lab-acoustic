@@ -7,8 +7,14 @@ from .estimate import (
     positioning_2d,
     positioning_mic_revision,
     positioning_ampli_revision,
+    positioning_phone,
 )
-from .create_db import create_db, create_mic_revision_db, create_ampli_revision_db
+from .create_db import (
+    create_db,
+    create_mic_revision_db,
+    create_ampli_revision_db,
+    create_phone_db,
+)
 
 
 class SoundDB:
@@ -68,4 +74,28 @@ class AmpliRevisionDB:
     def positioning(self, file, output="rect"):
         return positioning_ampli_revision(
             self.db[0], self.db[1], file, self.interval, output
+        )
+
+
+class PhoneDB:
+    """スマホマイクの位置補正を行うためのデータベースを作成するクラス
+
+    Attributes
+    ----------
+    db : tuple
+        作成した方位角、マイクの角度ごとのスペクトル,アンプリチュードの参照データベース
+
+    Methods
+    -------
+    positioning(file, output="rect")
+        測位を行う
+    """
+
+    def __init__(self, speaker_dir, mic_dir, interval=0.2):
+        self.interval = interval
+        self.db = create_phone_db(speaker_dir, mic_dir, interval=interval)
+
+    def positioning(self, file, output="rect"):
+        return positioning_phone(
+            self.db[0], self.db[1], self.db[2], file, self.interval, output
         )
