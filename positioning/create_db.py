@@ -6,13 +6,23 @@ from .readwav import readwav
 from .get_spectrum_amplitude import get_spectrum_amplitude, get_spec_ampli_noise
 
 
-def create_db(sample_dir, interval: float = 0.100, dimension: int = 3):
+def create_db(
+    sample_dir,
+    first_freq: int = 4000,
+    last_freq: int = 13000,
+    interval: float = 0.100,
+    dimension: int = 3,
+):
     """スピーカーの方位、距離特性のデータベースとなる配列を生成する
 
     Parameters
     ----------
     sample_dir : string
         計測データファイルが入ってるディレクトリの場所
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
     interval : float
         チャープのバンド間の間隔(s)
     dimension : int [2 or 3]
@@ -34,7 +44,7 @@ def create_db(sample_dir, interval: float = 0.100, dimension: int = 3):
     count_elevation_sample = 51  # 仰角方向のサンプル数
     speaker_heights = [0, 10, 20, 30, 40, 50]
     mic_degs = [-40, -30, -20, -10, 0, 10, 20, 30, 40]
-    band_freqs = np.arange(4000, 13000, chirp_width)  # 送信する周波数のバンド
+    band_freqs = np.arange(first_freq, last_freq, chirp_width)  # 送信する周波数のバンド
     fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
     band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
 
@@ -46,7 +56,10 @@ def create_db(sample_dir, interval: float = 0.100, dimension: int = 3):
         for mic_deg in mic_degs:
             sample = readwav(f"{sample_dir}/a{str(mic_deg)}.wav")
             sound_db[mic_deg + 40, :], ampli_db[mic_deg + 40] = get_spectrum_amplitude(
-                sample, interval_length=interval
+                sample,
+                first_freq=first_freq,
+                last_freq=last_freq,
+                interval_length=interval,
             )
         sound_db_complete = pd.DataFrame(sound_db).interpolate("akima").to_numpy()
         ampli_db_complete = pd.DataFrame(ampli_db).interpolate("akima").to_numpy()
@@ -109,7 +122,9 @@ def create_db(sample_dir, interval: float = 0.100, dimension: int = 3):
         return Akima, df_ampli_complete.values
 
 
-def create_mic_revision_db(speaker_dir, mic_dir, interval=0.2):
+def create_mic_revision_db(
+    speaker_dir, mic_dir, first_freq: int = 4000, last_freq: int = 13000, interval=0.2
+):
     """マイクの角度の補正をした2次元測位のデータベースを作成する
     スピーカー、マイクのスペクトルは周波数領域で掛け算
 
@@ -119,6 +134,10 @@ def create_mic_revision_db(speaker_dir, mic_dir, interval=0.2):
         スピーカの角度ごとの音声データが入ってるディレクトリの場所
     mic_dir : string
         マイクの角度ごとの音声データが入ってるディレクトリの場所
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
     interval : float
         チャープのバンド間の間隔(s)
     """
@@ -129,7 +148,7 @@ def create_mic_revision_db(speaker_dir, mic_dir, interval=0.2):
     count_azimuth_sample = 81  # 方位角方向のサンプル数
     azimuth_points = np.arange(-40, 50, 10)
     mic_angles = np.arange(0, 91, 10)
-    band_freqs = np.arange(4000, 13000, chirp_width)  # 送信する周波数のバンド
+    band_freqs = np.arange(first_freq, last_freq, chirp_width)  # 送信する周波数のバンド
     fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
     band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
 
@@ -139,7 +158,11 @@ def create_mic_revision_db(speaker_dir, mic_dir, interval=0.2):
     for azimuth in azimuth_points:
         signal = readwav(f"{speaker_dir}/a{str(azimuth)}.wav")
         spec, ampli = get_spectrum_amplitude(
-            signal, interval_length=interval, ret_spec="all"
+            signal,
+            first_freq=first_freq,
+            last_freq=last_freq,
+            interval_length=interval,
+            ret_spec="all",
         )  # 各バンドごとのスペクトルと振幅を取得
         speaker_spec = np.vstack((speaker_spec, [spec]))
         speaker_ampli = np.append(speaker_ampli, ampli)
@@ -150,7 +173,11 @@ def create_mic_revision_db(speaker_dir, mic_dir, interval=0.2):
     for angle in range(0, 91, 10):
         signal = readwav(f"{mic_dir}/angle{str(angle)}.wav")
         spec, ampli = get_spectrum_amplitude(
-            signal, interval_length=interval, ret_spec="all"
+            signal,
+            first_freq=first_freq,
+            last_freq=last_freq,
+            interval_length=interval,
+            ret_spec="all",
         )
         mic_spec = np.vstack((mic_spec, [spec]))
         mic_ampli = np.append(mic_ampli, ampli)

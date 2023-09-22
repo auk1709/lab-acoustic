@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.signal import chirp
 from scipy.io.wavfile import write
-from .chirp_exp import chirp_exp
 
 
 def make_transmit_signal(
@@ -36,6 +35,41 @@ def make_transmit_signal(
     signal = np.concatenate([signal, pad])
     f_name = f"transmit_{int(first_freq // 1000)}k-{int(last_freq // 1000)}k_i{int(interval_time * 1000)}.wav"
     write(f_name, sampling_rate, signal)
+
+
+def chirp_exp(
+    start_Hz: int,
+    stop_Hz: int,
+    chirpLen_s: float,
+    phase_rad: float = 0,
+    samplingRate: int = 48000,
+):
+    """チャープの生成関数,chirpaは生成したチャープ信号の配列を返す
+    チャープ信号の正の周波数成分のみを返す
+    Parameters
+    ----------
+    start_Hz : int
+        開始周波数
+    stop_Hz : int
+        終了周波数
+    chirpLen_s : float
+        チャープ信号の時間
+    phase_rad : float
+        チャープ信号の位相
+    samplingRate : int
+        サンプリングレート
+
+    Returns
+    -------
+    NDArray[float]
+        チャープ信号の正の周波数成分の配列
+    """
+    numSamples = int(chirpLen_s * samplingRate)  # Number of samples.
+    times_s = np.linspace(0, chirpLen_s, numSamples)  # Chirp times.
+    k = (stop_Hz - start_Hz) / chirpLen_s  # Chirp rate.
+    sweepFreqs_Hz = (start_Hz + k / 2.0 * times_s) * times_s  # 時間に対する周波数の変化
+    chirpa = np.array(np.exp(phase_rad * 1j - 2 * np.pi * 1j * sweepFreqs_Hz))
+    return chirpa
 
 
 def reference_transmit_signal(
@@ -80,4 +114,7 @@ def reference_transmit_signal(
 
 
 if __name__ == "__main__":
-    make_transmit_signal()
+    first_freq = int(input("first_freq (Hz): "))
+    last_freq = int(input("last_freq (Hz): "))
+    interval_time = float(input("interval_time (s): "))
+    make_transmit_signal(first_freq, last_freq, interval_time)

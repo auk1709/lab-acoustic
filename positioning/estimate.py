@@ -44,7 +44,13 @@ def estimate(reference_spec, reference_ampli, file, interval=0.1, output="rect")
 
 
 def positioning_2d(
-    reference_spec, reference_ampli, recieved_signal, interval=0.1, output="rect"
+    reference_spec,
+    reference_ampli,
+    recieved_signal,
+    first_freq: int = 4000,
+    last_freq: int = 13000,
+    interval=0.1,
+    output="rect",
 ):
     """測位を行う
 
@@ -61,7 +67,10 @@ def positioning_2d(
     """
 
     test_spec, test_ampli = get_spectrum_amplitude(
-        recieved_signal, interval_length=interval
+        recieved_signal,
+        first_freq=first_freq,
+        last_freq=last_freq,
+        interval_length=interval,
     )  # テストデータのスペクトルと振幅を取得
 
     # 角度推定
@@ -85,7 +94,13 @@ def positioning_2d(
 
 
 def positioning_mic_revision(
-    reference_spec, reference_ampli, recieved_signal, interval=0.2, output="rect"
+    reference_spec,
+    reference_ampli,
+    recieved_signal,
+    first_freq: int = 4000,
+    last_freq: int = 13000,
+    interval=0.2,
+    output="rect",
 ):
     """測位を行う
 
@@ -97,12 +112,19 @@ def positioning_mic_revision(
         作成した方位角、仰角ごとの振幅の参照データベース
     recieved_signal : NDArray
         読み込んだ検証用の音響信号データ
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
     output : string
         出力形式, 'rect' or 'polar', 直交座標系か極座標系か
     """
 
     test_spec, test_ampli = get_spectrum_amplitude(
-        recieved_signal, interval_length=interval
+        recieved_signal,
+        first_freq=first_freq,
+        last_freq=last_freq,
+        interval_length=interval,
     )  # テストデータのスペクトルと振幅を取得
 
     # 角度推定

@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.signal as sg
-from .chirp_exp import chirp_exp
+from .make_wave import chirp_exp
 import matplotlib.pyplot as plt
 import seaborn as sns
 from .make_wave import reference_transmit_signal
@@ -37,6 +37,8 @@ def extract_signal_start(res_signal: np.ndarray, interval_length: float = 0.100)
 
 def get_spectrum_amplitude(
     res_signal: np.ndarray,
+    first_freq: int = 4000,
+    last_freq: int = 13000,
     interval_length: float = 0.100,
     ampli_band="first",
     ret_spec="pattern",
@@ -50,6 +52,10 @@ def get_spectrum_amplitude(
     ---------
     res_signal : NDArray
         受信信号
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
     interval_length : float
         チャープのバンド間の間隔(s)
     ampli_band : string
@@ -73,7 +79,7 @@ def get_spectrum_amplitude(
     interval_sample_length = int(interval_length * sampling_rate)  # チャープのバンド間の間隔のサンプル数
     len_chirp_sample = 144  # 受信したチャープのサンプル数
     chirp_width = 1000  # チャープ一発の周波数帯域の幅
-    band_freqs = np.arange(4000, 13000, chirp_width)  # 送信する周波数のバンド
+    band_freqs = np.arange(first_freq, last_freq, chirp_width)  # 送信する周波数のバンド
     sampling_buffer = 48  # データ切り出しの前後のゆとりN_c (1ms)
     fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
     band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
