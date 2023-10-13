@@ -6,7 +6,12 @@ import seaborn as sns
 from .make_wave import reference_transmit_signal
 
 
-def extract_signal_start(res_signal: np.ndarray, interval_length: float = 0.100):
+def extract_signal_start(
+    res_signal: np.ndarray,
+    first_freq=4000,
+    last_freq=13000,
+    interval_length: float = 0.100,
+):
     """音声信号から1波形分の信号を抽出する最初のインデックスを求める
     マッチドフィルターによって1波形のみを抽出する
 
@@ -14,6 +19,10 @@ def extract_signal_start(res_signal: np.ndarray, interval_length: float = 0.100)
     ----------
     res_signal : NDArray
         受信信号
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
     interval_length : float
         チャープのバンド間の間隔(s)
 
@@ -25,7 +34,9 @@ def extract_signal_start(res_signal: np.ndarray, interval_length: float = 0.100)
 
     sampling_rate = 48000  # マイクのサンプリングレート
     sample_frame_length = int(interval_length * 20 * sampling_rate)  # 信号約2個分のフレーム数
-    chirp = reference_transmit_signal(interval_length=interval_length)  # 参照信号の生成
+    chirp = reference_transmit_signal(
+        first_freq=first_freq, last_freq=last_freq, interval_length=interval_length
+    )  # 参照信号の生成
     corr = sg.correlate(res_signal[:sample_frame_length], chirp, mode="valid")  # 相互相関
     corr_lags = sg.correlation_lags(
         len(res_signal[:sample_frame_length]), len(chirp), mode="valid"
@@ -86,7 +97,9 @@ def get_spectrum_amplitude(
 
     # マッチドフィルター
     sample_frame_length = int(interval_length * 20 * sampling_rate)  # 0.1秒分のサンプル数
-    chirp = reference_transmit_signal(interval_length=interval_length)  # 参照信号の生成
+    chirp = reference_transmit_signal(
+        first_freq=first_freq, last_freq=last_freq, interval_length=interval_length
+    )  # 参照信号の生成
     corr = sg.correlate(res_signal[:sample_frame_length], chirp, mode="valid")  # 相互相関
     if ampli_band == "all":
         max_corr = np.abs(corr).max()

@@ -43,6 +43,28 @@ def estimate(reference_spec, reference_ampli, file, interval=0.1, output="rect")
     return np.array([x_ans, y_ans, z_ans])
 
 
+def estimate_distance(reference_ampli, target_ampli, direction):
+    """距離推定を行う
+
+    Parameters
+    ----------
+    reference_ampli : NDArray
+        作成した方位角、仰角ごとの振幅の参照データベース
+    target_ampli : float
+        推定対象の点の振幅
+    direction : int
+        推定対象の方向
+
+    Returns
+    -------
+    float
+        推定した距離
+    """
+
+    est_distance = reference_ampli[direction] / target_ampli
+    return est_distance
+
+
 def positioning_2d(
     reference_spec,
     reference_ampli,

@@ -4,6 +4,7 @@ from .get_spectrum_amplitude import get_spectrum_amplitude
 from .readwav import readwav
 from .estimate import (
     estimate,
+    estimate_distance,
     positioning_2d,
     positioning_mic_revision,
     positioning_ampli_revision,
@@ -50,6 +51,15 @@ class SoundDB:
                 output=output,
             )
         return estimate(self.db[0], self.db[1], file, self.interval, output)
+
+    def estimate_distance(self, file, direction):
+        test_spec, test_ampli = get_spectrum_amplitude(
+            file,
+            first_freq=self.first_freq,
+            last_freq=self.last_freq,
+            interval_length=self.interval,
+        )
+        return estimate_distance(self.db[1], test_ampli, direction)
 
 
 class MicRevisionDB:
