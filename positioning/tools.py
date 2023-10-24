@@ -60,3 +60,23 @@ def rect_to_polar(x, y):
     r = np.sqrt(x**2 + y**2)
     theta = np.degrees(np.arctan2(x, y))
     return r, theta
+
+
+def points_on_test18_line():
+    """test18の線上にある点の座標を返す
+    シンポのときのtest18の減衰を調べるための座標を返す
+    """
+
+    azimuth_deg = 22
+    azimuth_rad = np.radians(azimuth_deg)
+    distance_base = 1.62
+    near_dists = np.arange(1.22, distance_base, 0.05)
+    far_dists = np.arange(distance_base, 1.8, 0.05)
+    dists = np.append(near_dists, far_dists)
+    positions = np.array([polar_to_rect(dist, azimuth_rad) for dist in dists])
+    positions_df = pd.DataFrame(positions, columns=["x", "y"])
+    positions_df.to_csv("test18_line_positions.csv", index=False)
+
+
+if __name__ == "__main__":
+    points_on_test18_line()
