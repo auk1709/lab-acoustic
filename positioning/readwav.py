@@ -1,6 +1,4 @@
-import wave
-import numpy as np
-from scipy.io import wavfile
+import soundfile as sf
 
 
 def readwav(file1):
@@ -17,10 +15,5 @@ def readwav(file1):
         信号データの配列
     """
 
-    rate, data = wavfile.read(file1)
+    data, rate = sf.read(file1)
     return data
-    # wr = wave.open(file1, "r")
-    # data = wr.readframes(wr.getnframes())
-    # wr.close()
-    # X = np.frombuffer(data, dtype=np.int16)
-    # return X
