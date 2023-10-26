@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "my-lab"
+version = "0.1.0"
+description = ""
+authors = ["auk1709 <ankomoja927@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+numpy = "^1.26.1"
+pandas = "^2.1.1"
+matplotlib = "^3.8.0"
+seaborn = "^0.13.0"
+jupyter = "^1.0.0"
+scipy = "^1.11.3"
+soundfile = "^0.12.1"
+pyqt6 = "^6.5.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
