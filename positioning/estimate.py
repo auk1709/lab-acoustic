@@ -1,5 +1,9 @@
 import numpy as np
-from .get_spectrum_amplitude import get_spectrum_amplitude, get_spec_ampli_noise
+from .get_spectrum_amplitude import (
+    get_spectrum_amplitude,
+    get_tukey_spectrum_amplitude,
+    get_spec_ampli_noise,
+)
 
 
 def estimate(reference_spec, reference_ampli, file, interval=0.1, output="rect"):
@@ -93,6 +97,57 @@ def positioning_2d(
         first_freq=first_freq,
         last_freq=last_freq,
         interval_length=interval,
+    )  # テストデータのスペクトルと振幅を取得
+
+    # 角度推定
+    # 全角度のスペクトルとの誤差の総和を記録
+    rss_db = np.sum(np.abs(reference_spec - test_spec), axis=1)
+    # 記録した残差平方和が最小となるインデックスを取得（角度決定）
+    est_direction = np.argmin(rss_db)
+    est_deg = est_direction - 40
+    # 方位をradで, est_direction[0]-40
+    est_azimuth = np.radians(est_direction - 40)
+
+    # 距離推定
+    est_distance = reference_ampli[est_direction] / test_ampli
+    if output == "polar":
+        return np.append(est_deg, est_distance)
+
+    # 測位点の座標を計算
+    x_ans = est_distance * np.sin(est_azimuth)
+    y_ans = est_distance * np.cos(est_azimuth)
+    return np.array([x_ans, y_ans])
+
+
+def positioning_tukey(
+    reference_spec,
+    reference_ampli,
+    recieved_signal,
+    first_freq: int = 15000,
+    last_freq: int = 22000,
+    interval=0.2,
+    output="rect",
+):
+    """測位を行う
+
+    Parameters
+    ----------
+    reference_spec : NDArray
+        作成した方位角、仰角ごとのスペクトルの参照データベース
+    reference_ampli : NDArray
+        作成した方位角、仰角ごとの振幅の参照データベース
+    recieved_signal : NDArray
+        読み込んだ検証用の音響信号データ
+    output : string
+        出力形式, 'rect' or 'polar', 直交座標系か極座標系か
+    """
+
+    test_spec, test_ampli = get_tukey_spectrum_amplitude(
+        recieved_signal,
+        first_freq=first_freq,
+        last_freq=last_freq,
+        interval_length=interval,
+        ampli_band="all",
     )  # テストデータのスペクトルと振幅を取得
 
     # 角度推定
