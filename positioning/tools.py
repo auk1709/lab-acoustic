@@ -78,5 +78,17 @@ def points_on_test18_line():
     positions_df.to_csv("test18_line_positions.csv", index=False)
 
 
+def export_reference_distance_position():
+    """角度ごとに距離を変えたときの座標を出力する
+    直交座標系での座標を計算してcsvファイルに出力する
+    """
+    distances = np.arange(1, 2.25, 0.25)
+    azimuth_degs = np.arange(-40, 50, 10)
+    dis, azi = np.meshgrid(distances, azimuth_degs)
+    x, y = polar_to_rect(dis.flatten(), np.radians(azi.flatten()))
+    pos_df = pd.DataFrame({"x": x, "y": y})
+    pos_df.to_csv("reference_distance_position.csv")
+
+
 if __name__ == "__main__":
-    points_on_test18_line()
+    export_reference_distance_position()
