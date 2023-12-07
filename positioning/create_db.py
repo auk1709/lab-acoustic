@@ -433,3 +433,75 @@ def create_ampli_revision_db(speaker_dir, mic_dir, interval=0.2):
         mix_ampli = np.vstack([mix_ampli, mix])
 
     return perfect_spec, mix_ampli
+
+
+def create_3d_spectrum_db(
+    sample_dir,
+    first_freq: int = 15000,
+    last_freq: int = 22000,
+    interval: float = 0.2,
+):
+    """スピーカーの方位特性のデータベースとなる配列を生成する
+    Tukey窓をかけたチャープを用いる
+    3次元で方位のみ、距離方向は床面反射から推定
+    一旦elevationは30°まで
+
+    Parameters
+    ----------
+    sample_dir : string
+        計測データファイルが入ってるディレクトリの場所
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
+    interval : float
+        チャープのバンド間の間隔(s)
+
+    Returns
+    -------
+    NDArray[]
+        方位角、仰角ごとのスペクトル
+    """
+
+    sampling_rate = 48000  # マイクのサンプリングレート(Hz)
+    len_chirp_sample = 144  # 受信したチャープのサンプル数
+    chirp_width = 1000  # チャープ一発の周波数帯域の幅
+    count_azimuth_sample = 81  # 方位角方向のサンプル数
+    count_elevation_sample = 31  # 仰角方向のサンプル数
+    azimuth_degs = [-40, -30, -20, -10, 0, 10, 20, 30, 40]
+    elevation_degs = [0, 10, 20, 30]
+    band_freqs = np.arange(first_freq, last_freq, chirp_width)  # 送信する周波数のバンド
+    fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
+    band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
+
+    spectrum_db = np.full(
+        (
+            count_azimuth_sample,
+            count_elevation_sample,
+            band_freq_index_range * len(band_freqs),
+        ),
+        np.nan,
+    )
+    for azi in azimuth_degs:
+        for ele in elevation_degs:
+            sample = readwav(f"{sample_dir}/a{str(azi)}e{str(ele)}.wav")
+            if sample.ndim > 1:
+                sample = sample[:, 1]
+            spectrum_db[azi + 40, ele, :], _ = get_tukey_spectrum_amplitude(
+                sample,
+                first_freq=first_freq,
+                last_freq=last_freq,
+                interval_length=interval,
+                ampli_band="all",
+            )
+    # 方位角方向の補間
+    for ele in elevation_degs:
+        spectrum_db[:, ele, :] = (
+            pd.DataFrame(spectrum_db[:, ele, :]).interpolate("akima").to_numpy()
+        )
+    # 仰角方向の補間
+    for i in range(count_azimuth_sample):
+        spectrum_db[i, :, :] = (
+            pd.DataFrame(spectrum_db[i, :, :]).interpolate("akima").to_numpy()
+        )
+    return spectrum_db

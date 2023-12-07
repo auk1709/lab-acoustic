@@ -1,9 +1,11 @@
 import numpy as np
+from scipy.signal import chirp, windows, correlate, correlation_lags
 from .get_spectrum_amplitude import (
     get_spectrum_amplitude,
     get_tukey_spectrum_amplitude,
     get_spec_ampli_noise,
 )
+from .make_wave import chirp_exp
 
 
 def estimate(reference_spec, reference_ampli, file, interval=0.1, output="rect"):
@@ -334,3 +336,96 @@ def positioning_phone(
     x_ans = est_distance * np.sin(est_azimuth)
     y_ans = est_distance * np.cos(est_azimuth)
     return np.array([x_ans, y_ans])
+
+
+def estimate_direction_3d(
+    reference_spec,
+    recieved_signal,
+    first_freq: int = 15000,
+    last_freq: int = 22000,
+    interval=0.2,
+):
+    """3次元の方位推定を行う
+
+    Parameters
+    ----------
+    reference_spec : NDArray
+        作成した方位角、仰角ごとのスペクトルの参照データベース
+    recieved_signal : NDArray
+        読み込んだ検証用の音響信号データ
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
+    interval : float
+        送信する周波数帯の間隔(秒)
+
+    Returns
+    -------
+    NDArray
+        推定した方位角、仰角
+    """
+
+    test_spec, _ = get_tukey_spectrum_amplitude(
+        recieved_signal,
+        first_freq=first_freq,
+        last_freq=last_freq,
+        interval_length=interval,
+        ampli_band="all",
+    )  # テストデータのスペクトルと振幅を取得
+
+    # 全角度のスペクトルとの誤差の総和を記録
+    rss_db = np.sum(np.abs(reference_spec - test_spec), axis=2)
+    # 記録した誤差が最小となるインデックスを取得（角度決定）
+    est_direction = np.unravel_index(np.argmin(rss_db), rss_db.shape)
+    est_azimuth = est_direction[0] - 40
+    est_elevation = est_direction[1]
+
+    return np.array([est_azimuth, est_elevation])
+
+
+def estimate_height(signal):
+    """床面反射からの到達時間を用いて高さを推定する
+    5発の平均をとっている
+    現状、実際には天井からの距離になっている
+
+    Parameters
+    ----------
+    signal : NDArray
+        読み込んだ音響信号データ, 1s分
+
+    Returns
+    -------
+    float
+        推定した高さ
+    """
+    ref_chirp = chirp_exp(15000, 22000, 0.05, 0.5, 48000) * windows.tukey(
+        int(48000 * 0.05)
+    )
+    corr = correlate(signal, ref_chirp)
+    corr = corr / np.max(corr)
+    first_max_i = np.argmax(corr[:10000])
+    corr_oneset = np.array([corr[first_max_i - 100 : first_max_i + 3500]])
+    for i in range(1, 5):
+        current_i = first_max_i + (7200 * i)
+        max_i_k = (
+            np.argmax(corr[current_i - 3600 : current_i + 3600]) + current_i - 3600
+        )
+        corr_oneset = np.concatenate(
+            [corr_oneset, [corr[max_i_k - 100 : max_i_k + 3500]]]
+        )
+    corr_avg = np.mean(corr_oneset, axis=0)
+    corr_avg_max_i = np.argmax(corr_avg)
+    corr_avg_second_i = (
+        np.argmax(corr_avg[corr_avg_max_i + 100 :]) + corr_avg_max_i + 100
+    )
+    estimated_height = (340 * (corr_avg_second_i - corr_avg_max_i)) / (48000 * 2)
+    return estimated_height
+
+
+def calc_position(azimuth, elevation, height):
+    """方位角、仰角、高さから座標を計算する"""
+    x = (1.5 - height) * np.sin(np.radians(azimuth)) / np.sin(np.radians(elevation))
+    y = (1.5 - height) * np.cos(np.radians(azimuth)) / np.sin(np.radians(elevation))
+    z = height
+    return x, y, z

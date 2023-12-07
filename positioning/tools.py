@@ -90,5 +90,91 @@ def export_reference_distance_position():
     pos_df.to_csv("reference_distance_position.csv")
 
 
+def polar_to_rect_3d(r, theta, phi):
+    """極座標から直交座標への変換
+    y軸方向を0度として、時計回りに角度を増加させる
+    phiはz軸方向の角度、下に向かうと正
+    通常の極座標とは異なるため注意
+
+    Parameters
+    ----------
+    r : float
+        極座標の半径
+    theta : float
+        極座標の角度(rad)
+    phi : float
+        極座標のz軸方向の角度(rad)
+    Returns
+    -------
+    x : float
+        直交座標のx座標
+    y : float
+        直交座標のy座標
+    z : float
+        直交座標のz座標
+    """
+    x = r * np.sin(theta) * np.cos(phi)
+    y = r * np.cos(theta) * np.cos(phi)
+    z = r * -np.sin(phi)
+    return x, y, z
+
+
+def export_reference_3d_position():
+    """3次元のデータベース用の座標を出力する
+    mcsでの(1,0.5,1.5)を原点とする
+    """
+    azimuth_degs = np.arange(-40, 50, 10)
+    elevation_degs = np.arange(0, 60, 10)
+    azazi, elele = np.meshgrid(azimuth_degs, elevation_degs)
+    x, y, z = polar_to_rect_3d(
+        1, np.radians(azazi.flatten()), np.radians(elele.flatten())
+    )
+    df_pos = pd.DataFrame(
+        {"x": np.round(x, 3), "y": np.round(y, 3), "z": np.round(z, 3)}
+    )
+    df_pos["mcs_x"] = df_pos["x"] + 1
+    df_pos["mcs_y"] = df_pos["y"] + 0.5
+    df_pos["mcs_z"] = df_pos["z"] + 1.5
+    x_t, y_t, z_t = polar_to_rect_3d(
+        1.15, np.radians(azazi.flatten()), np.radians(elele.flatten())
+    )
+    df_tail = pd.DataFrame({"x": x_t, "y": y_t, "z": z_t})
+    df_pos["mcs_tail_x"] = df_tail["x"] + 1
+    df_pos["mcs_tail_y"] = df_tail["y"] + 0.5
+    df_pos["mcs_tail_z"] = df_tail["z"] + 1.5
+    df_pos.to_csv("reference_3d_position.csv", index=False)
+
+
+def export_3d_test_position():
+    """3次元測位の計測点の真値を出力する"""
+    pos_polar = np.array(
+        [
+            [1.1, -20, 25],
+            [1.1, 0, 25],
+            [1.1, 20, 25],
+            [1.4, -15, 20],
+            [1.4, 0, 20],
+            [1.4, 15, 20],
+            [1.7, -10, 10],
+            [1.7, 0, 10],
+            [1.7, 10, 10],
+        ]
+    )
+    df_polar = pd.DataFrame(pos_polar, columns=["distance", "azimuth", "elevation"])
+    x, y, z = polar_to_rect_3d(
+        pos_polar[:, 0], np.radians(pos_polar[:, 1]), np.radians(pos_polar[:, 2])
+    )
+    df_pos = pd.DataFrame(
+        {"x": np.round(x, 3), "y": np.round(y, 3), "z": np.round(z, 3)}
+    )
+    df_pos["mcs_x"] = df_pos["x"] + 1
+    df_pos["mcs_y"] = df_pos["y"] + 0.5
+    df_pos["mcs_z"] = df_pos["z"] + 1.5
+    df_pos["distance"] = df_polar["distance"]
+    df_pos["azimuth"] = df_polar["azimuth"]
+    df_pos["elevation"] = df_polar["elevation"]
+    df_pos.to_csv("3d_test_position.csv", index=False)
+
+
 if __name__ == "__main__":
-    export_reference_distance_position()
+    export_3d_test_position()

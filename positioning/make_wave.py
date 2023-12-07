@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.signal import chirp, windows
 from scipy.io.wavfile import write
+import soundfile as sf
 
 
 def make_transmit_signal(
@@ -199,8 +200,35 @@ def reference_transmit_tukey(
     return chirp
 
 
+def make_floor_reflect_wav():
+    """床面反射で測距するためのwavファイルを生成する
+    スマホが出す, とりあえずただのチャープ信号
+    一応tukey窓はかけておく
+    100回+α回繰り返す
+    """
+
+    sampling_rate = 48000  # サンプリング周波数
+    first_freq = 15000
+    last_freq = 22000
+    signal_length = 0.05
+    interval_length = 0.1
+    tukey = windows.tukey(int(sampling_rate * signal_length))
+    signal = (
+        chirp(
+            t=np.arange(0, signal_length, 1 / sampling_rate),
+            f0=first_freq,
+            f1=last_freq,
+            t1=signal_length,
+        )
+        * tukey
+    )
+    interval = np.zeros(int(interval_length * sampling_rate))
+    set_signal = np.concatenate([signal, interval])
+    repeat_signal = np.tile(set_signal, 535)
+    f_name = f"reflect_floor.wav"
+    sf.write(f_name, repeat_signal, sampling_rate)
+    # write(f_name, sampling_rate, repeat_signal)
+
+
 if __name__ == "__main__":
-    first_freq = int(input("first_freq (Hz): "))
-    last_freq = int(input("last_freq (Hz): "))
-    interval_time = float(input("interval_time (s): "))
-    make_transmit_tukey(first_freq, last_freq, interval_time)
+    make_floor_reflect_wav()
