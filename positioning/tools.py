@@ -132,13 +132,17 @@ def export_reference_3d_position():
     df_pos = pd.DataFrame(
         {"x": np.round(x, 3), "y": np.round(y, 3), "z": np.round(z, 3)}
     )
+    df_pos["azimuth"] = azazi.flatten()
+    df_pos["elevation"] = elele.flatten()
     df_pos["mcs_x"] = df_pos["x"] + 1
     df_pos["mcs_y"] = df_pos["y"] + 0.5
     df_pos["mcs_z"] = df_pos["z"] + 1.5
     x_t, y_t, z_t = polar_to_rect_3d(
         1.15, np.radians(azazi.flatten()), np.radians(elele.flatten())
     )
-    df_tail = pd.DataFrame({"x": x_t, "y": y_t, "z": z_t})
+    df_tail = pd.DataFrame(
+        {"x": np.round(x_t, 3), "y": np.round(y_t, 3), "z": np.round(z_t, 3)}
+    )
     df_pos["mcs_tail_x"] = df_tail["x"] + 1
     df_pos["mcs_tail_y"] = df_tail["y"] + 0.5
     df_pos["mcs_tail_z"] = df_tail["z"] + 1.5
@@ -177,4 +181,4 @@ def export_3d_test_position():
 
 
 if __name__ == "__main__":
-    export_3d_test_position()
+    export_reference_3d_position()
