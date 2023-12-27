@@ -180,5 +180,24 @@ def export_3d_test_position():
     df_pos.to_csv("3d_test_position.csv", index=False)
 
 
+def get_snr(signal, noise):
+    """SN比を求める
+
+    Parameters
+    ----------
+    signal : float
+        信号の大きさ, 雑音込み
+    noise : float
+        雑音の大きさ
+
+    Returns
+    -------
+    float
+        SN比
+    """
+    snr = 20 * np.log10((signal - noise) / noise)
+    return snr
+
+
 if __name__ == "__main__":
     export_reference_3d_position()
