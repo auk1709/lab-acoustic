@@ -505,3 +505,87 @@ def create_3d_spectrum_db(
             pd.DataFrame(spectrum_db[i, :, :]).interpolate("akima").to_numpy()
         )
     return spectrum_db
+
+
+def create_reflect_ceiling_db(
+    sample_dir,
+    first_freq: int = 15000,
+    last_freq: int = 22000,
+    interval: float = 0.2,
+):
+    """スピーカーの天井反射のデータベースとなる配列を生成する
+    Tukey窓をかけたチャープを用いる
+    1mの立方体、50cm間隔で計測
+
+
+    Parameters
+    ----------
+    sample_dir : string
+        計測データファイルが入ってるディレクトリの場所
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
+    interval : float
+        チャープのバンド間の間隔(s)
+
+    Returns
+    -------
+    NDArray[]
+        方位角、仰角ごとのスペクトル
+    """
+
+    sampling_rate = 48000  # マイクのサンプリングレート(Hz)
+    len_chirp_sample = 144  # 受信したチャープのサンプル数
+    chirp_width = 1000  # チャープ一発の周波数帯域の幅
+    count_azimuth_sample = 81  # 方位角方向のサンプル数
+    count_elevation_sample = 31  # 仰角方向のサンプル数
+    azimuth_degs = [-40, -30, -20, -10, 0, 10, 20, 30, 40]
+    elevation_degs = [0, 10, 20, 30]
+    band_freqs = np.arange(first_freq, last_freq, chirp_width)  # 送信する周波数のバンド
+    fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
+    band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
+
+    pos = pd.read_csv(f"{sample_dir}/measure_points.csv", index_col=0)
+
+    spectrum_db = np.full(
+        (101, 101, 101, band_freq_index_range * len(band_freqs)), np.nan
+    )
+    for index, item in pos.iterrows():
+        sample = readwav(f"{sample_dir}/{index}.wav")
+        if sample.ndim > 1:
+            sample = sample[:, 1]
+        (
+            spectrum_db[
+                int((item["x"] + 0.5) * 100),
+                int((item["y"] - 1) * 100),
+                int((item["z"] - 0.5) * 100),
+                :,
+            ],
+            _,
+        ) = get_tukey_spectrum_amplitude(
+            sample,
+            first_freq=first_freq,
+            last_freq=last_freq,
+            interval_length=interval,
+            ampli_band="all",
+        )
+    # x方向の補間
+    for i in [0, 50, 100]:
+        for j in [0, 50, 100]:
+            spectrum_db[:, i, j, :] = (
+                pd.DataFrame(spectrum_db[:, i, j, :]).interpolate("akima").to_numpy()
+            )
+    # y方向の補間
+    for i in range(101):
+        for j in [0, 50, 100]:
+            spectrum_db[i, :, j, :] = (
+                pd.DataFrame(spectrum_db[i, :, j, :]).interpolate("akima").to_numpy()
+            )
+    # z方向の補間
+    for i in range(101):
+        for j in range(101):
+            spectrum_db[i, j, :, :] = (
+                pd.DataFrame(spectrum_db[i, j, :, :]).interpolate("akima").to_numpy()
+            )
+    return spectrum_db

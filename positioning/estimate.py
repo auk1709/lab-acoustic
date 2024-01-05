@@ -429,3 +429,49 @@ def calc_position(azimuth, elevation, height):
     y = (1.5 - height) * np.cos(np.radians(azimuth)) / np.sin(np.radians(elevation))
     z = height
     return x, y, z
+
+
+def positioning_reflect_ceiling(
+    reference_spec,
+    recieved_signal,
+    first_freq: int = 15000,
+    last_freq: int = 22000,
+    interval=0.2,
+):
+    """3次元の方位推定を行う
+
+    Parameters
+    ----------
+    reference_spec : NDArray
+        作成した方位角、仰角ごとのスペクトルの参照データベース
+    recieved_signal : NDArray
+        読み込んだ検証用の音響信号データ
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
+    interval : float
+        送信する周波数帯の間隔(秒)
+
+    Returns
+    -------
+    NDArray
+        推定した方位角、仰角
+    """
+
+    test_spec, _ = get_tukey_spectrum_amplitude(
+        recieved_signal,
+        first_freq=first_freq,
+        last_freq=last_freq,
+        interval_length=interval,
+        ampli_band="all",
+    )  # テストデータのスペクトルと振幅を取得
+
+    # 全角度のスペクトルとの誤差の総和を記録
+    rss_db = np.sum(np.abs(reference_spec - test_spec), axis=3)
+    # 記録した誤差が最小となるインデックスを取得（角度決定）
+    est_index = np.unravel_index(np.argmin(rss_db), rss_db.shape)
+
+    return np.array(
+        [est_index[0] / 100 - 0.5, est_index[1] / 100 + 1, est_index[2] / 100 + 0.5]
+    )

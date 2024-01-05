@@ -9,12 +9,14 @@ from .estimate import (
     positioning_tukey,
     positioning_mic_revision,
     positioning_ampli_revision,
+    positioning_reflect_ceiling,
 )
 from .create_db import (
     create_db,
     create_tukey_db,
     create_mic_revision_db,
     create_ampli_revision_db,
+    create_reflect_ceiling_db,
 )
 
 
@@ -162,4 +164,32 @@ class AmpliRevisionDB:
     def positioning(self, file, output="rect"):
         return positioning_ampli_revision(
             self.db[0], self.db[1], file, self.interval, output
+        )
+
+
+class ReflectCeilingDB:
+    def __init__(
+        self,
+        sample_dir,
+        first_freq: int = 15000,
+        last_freq: int = 22000,
+        interval=0.2,
+    ):
+        self.first_freq = first_freq
+        self.last_freq = last_freq
+        self.interval = interval
+        self.db = create_reflect_ceiling_db(
+            sample_dir,
+            first_freq=first_freq,
+            last_freq=last_freq,
+            interval=interval,
+        )
+
+    def positioning(self, file):
+        return positioning_reflect_ceiling(
+            self.db,
+            file,
+            first_freq=self.first_freq,
+            last_freq=self.last_freq,
+            interval=self.interval,
         )
