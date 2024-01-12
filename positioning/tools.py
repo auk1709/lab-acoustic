@@ -119,6 +119,33 @@ def polar_to_rect_3d(r, theta, phi):
     return x, y, z
 
 
+def rect_to_polar_3d(x, y, z):
+    """直交座標から極座標への変換
+
+    Parameters
+    ----------
+    x : float
+        直交座標のx座標
+    y : float
+        直交座標のy座標
+    z : float
+        直交座標のz座標
+
+    Returns
+    -------
+    r : float
+        極座標の半径
+    theta : float
+        極座標の角度(deg)
+    phi : float
+        極座標のz軸方向の角度(deg)
+    """
+    r = np.sqrt(x**2 + y**2 + z**2)
+    theta = np.degrees(np.arctan2(x, y))
+    phi = np.degrees(np.arcsin(-z / r))
+    return r, theta, phi
+
+
 def export_reference_3d_position():
     """3次元のデータベース用の座標を出力する
     mcsでの(1,0.5,1.5)を原点とする
