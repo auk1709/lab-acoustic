@@ -167,6 +167,85 @@ def get_spectrum_amplitude(
     return nomalized_spec, max_corr
 
 
+def get_tukey_spectrum(
+    res_signal: np.ndarray,
+    first_freq: int = 15000,
+    last_freq: int = 22000,
+    interval_length: float = 0.1,
+    signal_length=0.001,
+):
+    """音声信号のスペクトル振幅を求める
+    tukey窓をかけた帯域ごとに区切られたチャープ信号が連続で送られてくる受信信号から、
+    該当部分を切り出し送信されたチャープ信号のスペクトル振幅を求める
+    スペクトルのパターンのみを返す
+
+    Parameters
+    ---------
+    res_signal : NDArray
+        受信信号
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
+    interval_length : float
+        チャープのバンド間の間隔(s)
+    signal_length : float
+        チャープの信号長(s)
+    ret_spec : string
+        返り値のスペクトルの形式, 'pattern' or 'all'
+    plot : bool
+        プロットするかどうか
+
+    Returns
+    -------
+    spec_ampli : NDArray
+        スペクトル振幅
+    """
+
+    sampling_rate = 48000  # マイクのサンプリングレート
+    interval_sample_length = int(interval_length * sampling_rate)  # チャープのバンド間の間隔のサンプル数
+    len_chirp_sample = int(sampling_rate * signal_length)  # 受信したチャープのサンプル数
+    chirp_width = 1000  # チャープ一発の周波数帯域の幅(Hz)
+    band_freqs = np.arange(first_freq, last_freq, chirp_width)  # 送信する周波数のバンド
+    sampling_buffer = 48  # データ切り出しの前後のゆとりN_c (1ms)
+    fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
+    band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
+    tukey = sg.windows.tukey(len_chirp_sample)
+    # マッチドフィルター
+    chirp = reference_transmit_tukey(
+        first_freq=first_freq,
+        last_freq=last_freq,
+        interval_length=interval_length,
+        signal_length=signal_length,
+    )  # 参照信号の生成
+    corr = sg.correlate(res_signal, chirp, mode="valid")  # 相互相関
+    corr_lags = sg.correlation_lags(len(res_signal), len(chirp), mode="valid")
+    index_f = corr_lags[np.abs(corr).argmax()]  # 最大値のインデックス見つける
+
+    spec_ampli = np.array([])  # 各バンドから抽出したスペクトルパターンを格納する配列
+    for i, band_freq in enumerate(band_freqs):
+        start_i = index_f + (i * (len_chirp_sample + interval_sample_length))
+        current_sample = res_signal[
+            start_i - sampling_buffer : start_i + len_chirp_sample + sampling_buffer
+        ]
+        chirp = (
+            chirp_exp(band_freq, band_freq + chirp_width, signal_length, 0.5 * np.pi)
+            * tukey
+        )  # チャープ信号の生成
+        corr = sg.correlate(current_sample, chirp, mode="valid")  # 相互相関
+        corr_lags = sg.correlation_lags(len(current_sample), len(chirp), mode="valid")
+        index = corr_lags[np.abs(corr).argmax()]  # 最大値のインデックス見つける
+        X_1sec = current_sample[index : index + len_chirp_sample]  # 1つ分の波の抽出
+        spectrum = np.fft.fft(X_1sec)  # 計測点のスペクトル算出
+        ampli_spec = np.abs(spectrum)
+        band_i = int(band_freq // fft_freq_rate)
+        spec_ampli = np.append(
+            spec_ampli, ampli_spec[band_i : band_i + band_freq_index_range]
+        )
+    nomalized_spec = spec_ampli / np.max(spec_ampli)  # 正規化
+    return nomalized_spec
+
+
 def get_tukey_spectrum_amplitude(
     res_signal: np.ndarray,
     first_freq: int = 15000,

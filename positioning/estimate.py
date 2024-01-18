@@ -4,6 +4,7 @@ from .get_spectrum_amplitude import (
     get_spectrum_amplitude,
     get_tukey_spectrum_amplitude,
     get_spec_ampli_noise,
+    get_tukey_spectrum,
 )
 from .make_wave import chirp_exp
 
@@ -344,6 +345,7 @@ def estimate_direction_3d(
     first_freq: int = 15000,
     last_freq: int = 22000,
     interval=0.2,
+    signal_length: float = 0.003,
 ):
     """3次元の方位推定を行う
 
@@ -366,12 +368,12 @@ def estimate_direction_3d(
         推定した方位角、仰角
     """
 
-    test_spec, _ = get_tukey_spectrum_amplitude(
+    test_spec = get_tukey_spectrum(
         recieved_signal,
         first_freq=first_freq,
         last_freq=last_freq,
         interval_length=interval,
-        ampli_band="all",
+        signal_length=signal_length,
     )  # テストデータのスペクトルと振幅を取得
 
     # 全角度のスペクトルとの誤差の総和を記録
@@ -379,7 +381,7 @@ def estimate_direction_3d(
     # 記録した誤差が最小となるインデックスを取得（角度決定）
     est_direction = np.unravel_index(np.argmin(rss_db), rss_db.shape)
     est_azimuth = est_direction[0] - 40
-    est_elevation = est_direction[1]
+    est_elevation = est_direction[1] + 20
 
     return np.array([est_azimuth, est_elevation])
 

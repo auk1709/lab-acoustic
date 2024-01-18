@@ -39,7 +39,10 @@ def make_transmit_signal(
 
 
 def make_transmit_tukey(
-    first_freq: int = 15000, last_freq: int = 24000, interval_time: float = 0.2
+    first_freq: int = 15000,
+    last_freq: int = 24000,
+    interval_time: float = 0.2,
+    signal_length: float = 0.001,
 ):
     """tukey窓をかけた送信信号となる音声ファイルを生成する
     1kHzごとの周波数帯を連続的に送信するチャープ信号のwaveファイルを生成する
@@ -57,23 +60,23 @@ def make_transmit_tukey(
     sampling_rate = 48000  # サンプリング周波数
     transmit_bands = np.arange(first_freq, last_freq, 1000)  # 送信する周波数のバンド
     signal = np.array([])
-    tukey = windows.tukey(int(sampling_rate * 0.003))
+    tukey = windows.tukey(int(sampling_rate * signal_length))
     for band in transmit_bands:
         tmp_signal = (
             chirp(
-                t=np.arange(0, 0.003, 1 / sampling_rate),
+                t=np.arange(0, signal_length, 1 / sampling_rate),
                 f0=band,
                 f1=band + 1000,
-                t1=0.003,
+                t1=signal_length,
             )
             * tukey
         )
         signal = np.concatenate([signal, tmp_signal])
         interval = np.zeros(int(interval_time * sampling_rate))
         signal = np.concatenate([signal, interval])
-    ret_time = (len(signal) // sampling_rate) + 1  # 送信信号の長さ,切りの良い時間にする(秒)
-    pad_len = ret_time * sampling_rate - len(signal)
-    pad = np.zeros(pad_len)  # 全体が1秒になるように0で埋める
+    ret_time = ((len(signal) // (sampling_rate / 2)) + 1) / 2  # 送信信号の長さ,切りの良い時間にする(秒)
+    pad_len = int(ret_time * sampling_rate - len(signal))
+    pad = np.zeros(pad_len)  # 全体が0.5秒単位になるように0で埋める
     signal = np.concatenate([signal, pad])
     f_name = f"transmit_tukey_{int(first_freq // 1000)}k-{int(last_freq // 1000)}k_i{int(interval_time * 1000)}.wav"
     write(f_name, sampling_rate, signal)
@@ -156,7 +159,10 @@ def reference_transmit_signal(
 
 
 def reference_transmit_tukey(
-    first_freq: int = 15000, last_freq: int = 24000, interval_length: float = 0.2
+    first_freq: int = 15000,
+    last_freq: int = 24000,
+    interval_length: float = 0.2,
+    signal_length: float = 0.003,
 ):
     """受信信号抽出のための参照信号を生成する
     マッチドフィルターによって1波形のみを抽出するための参照信号を生成する
@@ -169,6 +175,8 @@ def reference_transmit_tukey(
         送信する最後の周波数
     interval_length : float
         送信する周波数帯の間隔(秒)
+    signal_length : float
+        チャープ一発の信号長
 
     Returns
     -------
@@ -177,11 +185,10 @@ def reference_transmit_tukey(
     """
 
     sampling_rate = 48000  # マイクのサンプリングレート
-    signal_length = 0.003  # チャープ一発の信号長
     interval_sample_length = int(interval_length * sampling_rate)  # チャープのバンド間の間隔のサンプル数
     chirp_width = 1000  # チャープ一発の周波数帯域の幅
     band_freqs = np.arange(first_freq, last_freq, chirp_width)  # 送信する周波数のバンド
-    tukey = windows.tukey(int(sampling_rate * 0.003))
+    tukey = windows.tukey(int(sampling_rate * signal_length))
     chirp = (
         chirp_exp(
             band_freqs[0], band_freqs[0] + chirp_width, signal_length, 0.5 * np.pi
@@ -231,4 +238,6 @@ def make_floor_reflect_wav():
 
 
 if __name__ == "__main__":
-    make_floor_reflect_wav()
+    make_transmit_tukey(
+        first_freq=1000, last_freq=24000, interval_time=0.1, signal_length=0.001
+    )

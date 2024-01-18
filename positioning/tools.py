@@ -142,7 +142,7 @@ def rect_to_polar_3d(x, y, z):
     """
     r = np.sqrt(x**2 + y**2 + z**2)
     theta = np.degrees(np.arctan2(x, y))
-    phi = np.degrees(np.arcsin(-z / r))
+    phi = np.degrees(np.arctan2(-z, y))
     return r, theta, phi
 
 
@@ -226,5 +226,53 @@ def get_snr(signal, noise):
     return snr
 
 
+def dir_height_to_position(azimuth, elevation, height, origin_h):
+    """方位角、仰角、高さから座標を計算する
+
+    Parameters
+    ----------
+    azimuth : float
+        方位角(deg)
+    elevation : float
+        仰角(deg)
+    height : float
+        高さ
+    origin_h : float
+        原点の高さ
+    """
+    x = -(
+        (height - origin_h)
+        * np.tan(np.radians(azimuth))
+        / np.tan(np.radians(elevation))
+    )
+    y = -((height - origin_h) / np.tan(np.radians(elevation)))
+    z = height
+    print(elevation)
+    print(np.radians(elevation))
+    print(np.tan(np.radians(elevation)))
+    print(y)
+    return x, y, z
+
+
+def export_reference_3d_position_plane():
+    """3次元のデータベース用の座標を出力する
+    mcsでの(1,0.5,1.6)を原点とする
+    スマホ側の高さを1mで平行移動だけで取れるようにする
+    """
+    azimuth_degs = np.arange(-40, 50, 10)
+    elevation_degs = np.arange(20, 60, 10)
+    azazi, elele = np.meshgrid(azimuth_degs, elevation_degs)
+    x, y, z = dir_height_to_position(azazi.flatten(), elele.flatten(), 1, 1.6)
+    df_pos = pd.DataFrame(
+        {"x": np.round(x, 3), "y": np.round(y, 3), "z": np.round(z, 3)}
+    )
+    df_pos["azimuth"] = azazi.flatten()
+    df_pos["elevation"] = elele.flatten()
+    df_pos["mcs_x"] = np.round(df_pos["x"] + 1, 3)
+    df_pos["mcs_y"] = np.round(df_pos["y"] + 0.5, 3)
+    df_pos["mcs_z"] = np.round(df_pos["z"], 3)
+    df_pos.to_csv("reference_3d_position.csv", index=False)
+
+
 if __name__ == "__main__":
-    export_reference_3d_position()
+    export_reference_3d_position_plane()
