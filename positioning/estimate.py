@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.signal import chirp, windows, correlate, correlation_lags
+from scipy.optimize import minimize_scalar
+import sympy
 from .get_spectrum_amplitude import (
     get_spectrum_amplitude,
     get_tukey_spectrum_amplitude,
@@ -439,6 +441,7 @@ def positioning_reflect_ceiling(
     first_freq: int = 15000,
     last_freq: int = 22000,
     interval=0.2,
+    signal_length: float = 0.003,
 ):
     """3次元の方位推定を行う
 
@@ -461,12 +464,12 @@ def positioning_reflect_ceiling(
         推定した方位角、仰角
     """
 
-    test_spec, _ = get_tukey_spectrum_amplitude(
+    test_spec = get_tukey_spectrum(
         recieved_signal,
         first_freq=first_freq,
         last_freq=last_freq,
         interval_length=interval,
-        ampli_band="all",
+        signal_length=signal_length,
     )  # テストデータのスペクトルと振幅を取得
 
     # 全角度のスペクトルとの誤差の総和を記録
@@ -475,5 +478,80 @@ def positioning_reflect_ceiling(
     est_index = np.unravel_index(np.argmin(rss_db), rss_db.shape)
 
     return np.array(
-        [est_index[0] / 100 - 0.5, est_index[1] / 100 + 1, est_index[2] / 100 + 0.5]
+        [
+            est_index[0] / 100 - 0.25,
+            est_index[1] / 100 + 1.25,
+            est_index[2] / 100 + 0.75,
+        ]
     )
+
+
+def positioning_direction_reflect_tdoa(azimuth, elevation, tdoa_sample):
+    """方位角、仰角、天井反射の到来時間差から測位する関数
+    スピーカーが天井から30cmの位置にある設定
+
+    Parameters
+    ----------
+    azimuth : float
+        方位角 [deg]
+    elevation : float
+        仰角 [deg]
+    tdoa_sample : int
+        天井反射の到来時間差 [sample]
+
+    Returns
+    -------
+    NDArray
+        推定位置(x, y, z)[m]
+    """
+
+    sampling_rate = 48000  # マイクのサンプリングレート
+    speaker_height = 2.2  # スピーカーの高さ
+    speaker_ceiling_distance = 0.3  # スピーカーと天井の距離
+    diff_distance = tdoa_sample / sampling_rate * 340  # 天井反射の到来時間差から距離差を計算
+
+    # r = sympy.Symbol("r")
+    # x = sympy.Symbol("x")
+    # y = sympy.Symbol("y")
+    # z = sympy.Symbol("z")
+    # expr1 = r * np.cos(np.radians(elevation)) * np.sin(np.radians(azimuth)) - x
+    # expr2 = r * np.cos(np.radians(elevation)) * np.cos(np.radians(azimuth)) - y
+    # expr3 = r * np.sin(np.radians(elevation)) - z
+    # expr4 = (
+    #     (x**2 + y**2 + (z - (speaker_height + (speaker_ceiling_distance * 2))) ** 2)
+    #     ** 0.5
+    #     - (x**2 + y**2 + (z - speaker_height) ** 2) ** 0.5
+    #     - diff_distance
+    # )
+    # sol = sympy.solve([expr1, expr2, expr3, expr4], [x, y, z, r])
+    # if sol[0][3] > 0:
+    #     return np.array([sol[0][0], sol[0][1], sol[0][2]])
+    # return np.array([sol[1][0], sol[1][1], sol[1][2]])
+
+    def func(r):
+        return (
+            (
+                (r * np.cos(np.radians(elevation)) * np.sin(np.radians(azimuth))) ** 2
+                + (r * np.cos(np.radians(elevation)) * np.cos(np.radians(azimuth))) ** 2
+                + (
+                    r * np.sin(np.radians(elevation))
+                    - (speaker_height + (speaker_ceiling_distance * 2))
+                )
+                ** 2
+            )
+            ** 0.5
+            - (
+                (r * np.cos(np.radians(elevation)) * np.sin(np.radians(azimuth))) ** 2
+                + (r * np.cos(np.radians(elevation)) * np.cos(np.radians(azimuth))) ** 2
+                + ((r * np.sin(np.radians(elevation))) - speaker_height) ** 2
+            )
+            ** 0.5
+            - diff_distance
+        ) ** 2
+
+    res = minimize_scalar(func, method="bounded", bounds=(0, 5))
+    x = res.x * np.cos(np.radians(elevation)) * np.sin(np.radians(azimuth))
+    y = res.x * np.cos(np.radians(elevation)) * np.cos(np.radians(azimuth))
+    z = -res.x * np.sin(np.radians(elevation)) + speaker_height
+
+    return np.array([x, y, z])

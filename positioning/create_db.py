@@ -446,7 +446,7 @@ def create_3d_spectrum_db(
     """スピーカーの方位特性のデータベースとなる配列を生成する
     Tukey窓をかけたチャープを用いる
     3次元で方位のみ、距離方向は床面反射から推定
-    一旦elevationは30°まで
+    elevationは20~50°
 
     Parameters
     ----------
@@ -516,6 +516,7 @@ def create_reflect_ceiling_db(
     first_freq: int = 15000,
     last_freq: int = 22000,
     interval: float = 0.2,
+    signal_length: float = 0.003,
 ):
     """スピーカーの天井反射のデータベースとなる配列を生成する
     Tukey窓をかけたチャープを用いる
@@ -540,55 +541,48 @@ def create_reflect_ceiling_db(
     """
 
     sampling_rate = 48000  # マイクのサンプリングレート(Hz)
-    len_chirp_sample = 144  # 受信したチャープのサンプル数
+    len_chirp_sample = int(sampling_rate * signal_length)  # 受信したチャープのサンプル数
     chirp_width = 1000  # チャープ一発の周波数帯域の幅
-    count_azimuth_sample = 81  # 方位角方向のサンプル数
-    count_elevation_sample = 31  # 仰角方向のサンプル数
-    azimuth_degs = [-40, -30, -20, -10, 0, 10, 20, 30, 40]
-    elevation_degs = [0, 10, 20, 30]
     band_freqs = np.arange(first_freq, last_freq, chirp_width)  # 送信する周波数のバンド
     fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
     band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
 
-    pos = pd.read_csv(f"{sample_dir}/measure_points.csv", index_col=0)
+    pos = pd.read_csv(f"{sample_dir}/measure-points.csv", index_col=0)
 
-    spectrum_db = np.full(
-        (101, 101, 101, band_freq_index_range * len(band_freqs)), np.nan
-    )
+    spectrum_db = np.full((51, 51, 51, band_freq_index_range * len(band_freqs)), np.nan)
     for index, item in pos.iterrows():
         sample = readwav(f"{sample_dir}/{index}.wav")
         if sample.ndim > 1:
             sample = sample[:, 1]
         (
             spectrum_db[
-                int((item["x"] + 0.5) * 100),
-                int((item["y"] - 1) * 100),
-                int((item["z"] - 0.5) * 100),
+                int((item["x"] + 0.25) * 100),
+                int((item["y"] - 1.25) * 100),
+                int((item["z"] - 0.75) * 100),
                 :,
-            ],
-            _,
-        ) = get_tukey_spectrum_amplitude(
+            ]
+        ) = get_tukey_spectrum(
             sample,
             first_freq=first_freq,
             last_freq=last_freq,
             interval_length=interval,
-            ampli_band="all",
+            signal_length=signal_length,
         )
     # x方向の補間
-    for i in [0, 50, 100]:
-        for j in [0, 50, 100]:
+    for i in [0, 50]:
+        for j in [0, 25, 50]:
             spectrum_db[:, i, j, :] = (
                 pd.DataFrame(spectrum_db[:, i, j, :]).interpolate("akima").to_numpy()
             )
     # y方向の補間
-    for i in range(101):
-        for j in [0, 50, 100]:
+    for i in range(51):
+        for j in [0, 25, 50]:
             spectrum_db[i, :, j, :] = (
                 pd.DataFrame(spectrum_db[i, :, j, :]).interpolate("akima").to_numpy()
             )
     # z方向の補間
-    for i in range(101):
-        for j in range(101):
+    for i in range(51):
+        for j in range(51):
             spectrum_db[i, j, :, :] = (
                 pd.DataFrame(spectrum_db[i, j, :, :]).interpolate("akima").to_numpy()
             )

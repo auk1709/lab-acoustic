@@ -351,6 +351,7 @@ def get_sn_amplitude(
     first_freq: int = 15000,
     last_freq: int = 22000,
     interval_length: float = 0.2,
+    signal_length=0.003,
 ):
     """音声信号の信号とノイズの振幅を求める
     tukey窓をかけた帯域ごとに区切られたチャープ信号が連続で送られてくる受信信号から、
@@ -367,6 +368,8 @@ def get_sn_amplitude(
         送信する最後の周波数
     interval_length : float
         チャープのバンド間の間隔(s)
+    signal_length : float
+        チャープの信号長(s)`
 
     Returns
     -------
@@ -376,24 +379,23 @@ def get_sn_amplitude(
 
     # 方位角-40~40°, 仰角0~50°, スペクトル6個×10発
     sampling_rate = 48000  # マイクのサンプリングレート
-    signal_length = 0.003  # チャープ一発の信号長
     interval_sample_length = int(interval_length * sampling_rate)  # チャープのバンド間の間隔のサンプル数
-    len_chirp_sample = 144  # 受信したチャープのサンプル数
+    len_chirp_sample = int(sampling_rate * signal_length)  # 受信したチャープのサンプル数
     chirp_width = 1000  # チャープ一発の周波数帯域の幅
     band_freqs = np.arange(first_freq, last_freq, chirp_width)  # 送信する周波数のバンド
     sampling_buffer = 48  # データ切り出しの前後のゆとりN_c (1ms)
     fft_freq_rate = sampling_rate / len_chirp_sample  # FFTの周波数分解能
     band_freq_index_range = int(chirp_width / fft_freq_rate + 1)  # 1つの帯域の周波数インデックスの範囲
-    tukey = sg.windows.tukey(int(sampling_rate * 0.003))
+    tukey = sg.windows.tukey(int(sampling_rate * signal_length))
     # マッチドフィルター
-    sample_frame_length = int(interval_length * 20 * sampling_rate)  # 0.1秒分のサンプル数
     chirp = reference_transmit_tukey(
-        first_freq=first_freq, last_freq=last_freq, interval_length=interval_length
+        first_freq=first_freq,
+        last_freq=last_freq,
+        interval_length=interval_length,
+        signal_length=signal_length,
     )  # 参照信号の生成
-    corr = sg.correlate(res_signal[:sample_frame_length], chirp, mode="valid")  # 相互相関
-    corr_lags = sg.correlation_lags(
-        len(res_signal[:sample_frame_length]), len(chirp), mode="valid"
-    )
+    corr = sg.correlate(res_signal, chirp, mode="valid")  # 相互相関
+    corr_lags = sg.correlation_lags(len(res_signal), len(chirp), mode="valid")
     index_f = corr_lags[np.abs(corr).argmax()]  # 最大値のインデックス見つける
 
     signal_noise = []
@@ -484,3 +486,45 @@ def get_spec_ampli_noise(
         return bands_spec, max_corr, noise_avg
     nomalized_spec = spec_ampli / np.max(spec_ampli)  # スペクトルパターンの正規化
     return nomalized_spec, max_corr, noise_avg
+
+
+def get_reflect_ceiling_tdoa(
+    res_signal,
+    first_freq=15000,
+    last_freq=22000,
+    interval_length=0.1,
+    signal_length=0.001,
+):
+    """天井反射音の到来時間差を求める関数
+
+    Parameters
+    ----------
+    res_signal : np.ndarray
+        受信信号
+    first_freq : int
+        送信する最初の周波数
+    last_freq : int
+        送信する最後の周波数
+    interval_length : float
+        チャープのバンド間の間隔
+    signal_length : float
+        チャープ一発の信号長
+
+    Returns
+    -------
+    int
+        天井反射音の到来時間差のサンプル数
+    """
+
+    ref_transmit = reference_transmit_tukey(
+        first_freq=first_freq,
+        last_freq=last_freq,
+        interval_length=interval_length,
+        signal_length=signal_length,
+    )  # 参照信号の生成
+    corr = np.abs(sg.correlate(res_signal, ref_transmit, mode="valid"))  # 相互相関
+    corr_lags = sg.correlation_lags(len(res_signal), len(ref_transmit), mode="valid")
+    index_f = corr_lags[corr.argmax()]  # 最大値のインデックス見つける
+    next_peak = np.argmax(corr[index_f + 20 : index_f + 100]) + index_f + 20
+    diff = next_peak - index_f
+    return diff

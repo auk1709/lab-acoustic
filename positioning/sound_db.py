@@ -1,6 +1,11 @@
 import numpy as np
 
-from .get_spectrum_amplitude import get_spectrum_amplitude, get_tukey_spectrum_amplitude
+from .get_spectrum_amplitude import (
+    get_spectrum_amplitude,
+    get_tukey_spectrum_amplitude,
+    get_tukey_spectrum,
+    get_reflect_ceiling_tdoa,
+)
 from .readwav import readwav
 from .estimate import (
     estimate,
@@ -10,6 +15,8 @@ from .estimate import (
     positioning_mic_revision,
     positioning_ampli_revision,
     positioning_reflect_ceiling,
+    estimate_direction_3d,
+    positioning_direction_reflect_tdoa,
 )
 from .create_db import (
     create_db,
@@ -17,6 +24,7 @@ from .create_db import (
     create_mic_revision_db,
     create_ampli_revision_db,
     create_reflect_ceiling_db,
+    create_3d_spectrum_db,
 )
 
 
@@ -174,15 +182,18 @@ class ReflectCeilingDB:
         first_freq: int = 15000,
         last_freq: int = 22000,
         interval=0.2,
+        signal_length=0.003,
     ):
         self.first_freq = first_freq
         self.last_freq = last_freq
         self.interval = interval
+        self.signal_length = signal_length
         self.db = create_reflect_ceiling_db(
             sample_dir,
             first_freq=first_freq,
             last_freq=last_freq,
             interval=interval,
+            signal_length=signal_length,
         )
 
     def positioning(self, file):
@@ -192,4 +203,48 @@ class ReflectCeilingDB:
             first_freq=self.first_freq,
             last_freq=self.last_freq,
             interval=self.interval,
+            signal_length=self.signal_length,
         )
+
+
+class CeilingTDoADB:
+    """天井反射のTDoAを使った測位を行うためのデータベースを作成するクラス"""
+
+    def __init__(
+        self,
+        sample_dir,
+        first_freq: int = 1000,
+        last_freq: int = 24000,
+        interval=0.1,
+        signal_length=0.001,
+    ):
+        self.first_freq = first_freq
+        self.last_freq = last_freq
+        self.interval = interval
+        self.signal_length = signal_length
+        self.db = create_3d_spectrum_db(
+            sample_dir,
+            first_freq=first_freq,
+            last_freq=last_freq,
+            interval=interval,
+            signal_length=signal_length,
+        )
+
+    def positioning(self, file):
+        direction = estimate_direction_3d(
+            self.db,
+            file,
+            first_freq=self.first_freq,
+            last_freq=self.last_freq,
+            interval=self.interval,
+            signal_length=self.signal_length,
+        )
+        tdoa = get_reflect_ceiling_tdoa(
+            file,
+            first_freq=self.first_freq,
+            last_freq=self.last_freq,
+            interval_length=self.interval,
+            signal_length=self.signal_length,
+        )
+        position = positioning_direction_reflect_tdoa(*direction, tdoa)
+        return np.concatenate([position, direction, [tdoa]])
