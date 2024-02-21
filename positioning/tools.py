@@ -259,8 +259,8 @@ def export_reference_3d_position_plane():
     mcsでの(1,0.5,1.6)を原点とする
     スマホ側の高さを1mで平行移動だけで取れるようにする
     """
-    azimuth_degs = np.arange(-40, 50, 10)
-    elevation_degs = np.arange(20, 60, 10)
+    azimuth_degs = np.arange(-40, 41, 5)
+    elevation_degs = np.arange(20, 51, 5)
     azazi, elele = np.meshgrid(azimuth_degs, elevation_degs)
     x, y, z = dir_height_to_position(azazi.flatten(), elele.flatten(), 1, 1.6)
     df_pos = pd.DataFrame(
